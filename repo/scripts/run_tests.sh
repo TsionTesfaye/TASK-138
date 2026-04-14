@@ -7,6 +7,32 @@ echo "  DealerOps Test Suite"
 echo "========================================="
 echo ""
 
+# --- Move to repo root ---
+# When invoked as scripts/run_tests.sh from a CI runner, ensure the working
+# directory is the repo root (parent of the scripts/ dir), regardless of where
+# the script was called from.
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT"
+
+# --- swiftc availability / Docker delegation ---
+# The project targets iOS (Apple platforms). On a CI host without swiftc, we
+# delegate compilation and execution to the Swift Docker container defined in
+# docker-compose.yml. Inside that container swiftc IS available, so this branch
+# is not taken when the script re-runs itself inside Docker.
+if ! command -v swiftc >/dev/null 2>&1; then
+  echo "   swiftc not found on host — delegating to Docker (swift:5.9)"
+  echo ""
+  if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+    exec docker compose -f "$REPO_ROOT/docker-compose.yml" run --rm dealerops
+  elif command -v docker-compose >/dev/null 2>&1; then
+    exec docker-compose -f "$REPO_ROOT/docker-compose.yml" run --rm dealerops
+  else
+    echo "❌ Neither swiftc nor docker/docker-compose is available. Cannot run tests."
+    exit 127
+  fi
+fi
+
 # --- Platform detection ---
 # CoreData is Apple-only (macOS/iOS). On Linux (e.g. swift:5.9 Docker image) we must
 # exclude all CoreData-dependent files from compilation. UIKit files are always excluded
