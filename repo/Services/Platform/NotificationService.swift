@@ -96,4 +96,18 @@ final class NotificationService {
         )
     }
 }
+#else
+/// Linux stub for NotificationService.
+/// The real implementation wraps UNUserNotificationCenter, which is Apple-only.
+/// On Linux (CI) all methods are no-ops so call sites in platform-agnostic code
+/// (e.g. SLAService) compile and run without needing `#if canImport` guards.
+final class NotificationService {
+    static let shared = NotificationService()
+    func requestAuthorization(completion: @escaping (Bool) -> Void) { completion(false) }
+    func scheduleLeadSLAAlert(leadId: UUID, customerName: String, deadline: Date) {}
+    func scheduleAppointmentSLAAlert(appointmentId: UUID, startTime: Date) {}
+    func scheduleReminderNotification(reminderId: UUID, dueAt: Date, message: String) {}
+    func scheduleImmediateNotification(identifier: String, title: String, body: String) {}
+    func cancelNotification(identifier: String) {}
+}
 #endif
