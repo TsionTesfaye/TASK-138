@@ -1,5 +1,10 @@
 import Foundation
+#if canImport(CommonCrypto)
 import CommonCrypto
+#endif
+#if canImport(Security)
+import Security
+#endif
 
 /// AES-256-CBC encryption for sensitive fields.
 /// design.md section 5: AES encryption for sensitive fields, keys stored in Keychain.
@@ -9,6 +14,10 @@ protocol EncryptionServiceProtocol {
     func decrypt(_ ciphertext: String, recordId: UUID) -> String?
 }
 
+// The real AES-backed EncryptionService depends on CommonCrypto (Apple-only).
+// On Linux, only the protocol and InMemoryEncryptionService (below) are available,
+// which is sufficient for the test suite.
+#if canImport(CommonCrypto) && canImport(Security)
 final class EncryptionService: EncryptionServiceProtocol {
 
     private let keychainService: KeychainServiceProtocol
@@ -115,6 +124,7 @@ final class EncryptionService: EncryptionServiceProtocol {
         return key
     }
 }
+#endif
 
 /// In-memory encryption for tests — uses simple reversible encoding, not real AES.
 final class InMemoryEncryptionService: EncryptionServiceProtocol {

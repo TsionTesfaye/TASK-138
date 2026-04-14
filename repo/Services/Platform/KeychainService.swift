@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(Security)
 import Security
+#endif
 
 /// Real Keychain integration for storing per-record encryption keys.
 /// design.md section 5: keys stored in Keychain.
@@ -9,6 +11,9 @@ protocol KeychainServiceProtocol {
     func deleteKey(recordId: UUID) -> Bool
 }
 
+// The real Keychain-backed implementation depends on the Security framework (Apple-only).
+// On Linux, only the protocol and InMemoryKeychainService (below) are available.
+#if canImport(Security)
 final class KeychainService: KeychainServiceProtocol {
 
     private let servicePrefix = "com.dealerops.encryption"
@@ -66,6 +71,7 @@ final class KeychainService: KeychainServiceProtocol {
         return status == errSecSuccess || status == errSecItemNotFound
     }
 }
+#endif
 
 /// In-memory implementation for tests.
 final class InMemoryKeychainService: KeychainServiceProtocol {

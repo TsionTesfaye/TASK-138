@@ -1,5 +1,5 @@
 import Foundation
-import CommonCrypto
+// CommonCrypto is Apple-only; FileService now routes SHA-256 through CryptoShim.
 
 /// design.md 4.9, questions.md Q24-Q26
 /// Handles file uploads, validation, SHA-256 fingerprinting, watermark, lifecycle.
@@ -298,11 +298,7 @@ final class FileService {
     // MARK: - SHA-256
 
     func sha256(data: Data) -> String {
-        var hash = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
-        data.withUnsafeBytes {
-            _ = CC_SHA256($0.baseAddress, CC_LONG(data.count), &hash)
-        }
-        return hash.map { String(format: "%02x", $0) }.joined()
+        return CryptoShim.sha256Hex(data)
     }
 
     // MARK: - Sandbox Path

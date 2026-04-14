@@ -1,4 +1,8 @@
 import Foundation
+
+// LocalAuthentication is Apple-only. On Linux this class is unavailable entirely;
+// no tests exercise biometrics, so this is safe.
+#if canImport(LocalAuthentication)
 import LocalAuthentication
 
 /// Real LocalAuthentication wrapper for FaceID/TouchID.
@@ -40,3 +44,4 @@ final class BiometricService {
         }
     }
 }
+#endif

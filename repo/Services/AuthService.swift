@@ -1,5 +1,6 @@
 import Foundation
-import CommonCrypto
+// CommonCrypto is Apple-only; AuthService now routes all crypto through CryptoShim
+// (pure-Swift fallbacks on Linux, CommonCrypto on Apple).
 
 /// design.md 4.1, questions.md 1-5
 /// Handles bootstrap, login, password validation, lockout, biometric enablement.
@@ -182,34 +183,19 @@ final class AuthService {
     static let derivedKeyLength = 32 // 256 bits
 
     func generateSalt() -> String {
-        var bytes = [UInt8](repeating: 0, count: 32)
-        _ = SecRandomCopyBytes(kSecRandomDefault, 32, &bytes)
-        return Data(bytes).base64EncodedString()
+        return CryptoShim.randomBytes(count: 32).base64EncodedString()
     }
 
     func hashPassword(_ password: String, salt: String) -> String {
         guard let passwordData = password.data(using: .utf8),
               let saltData = Data(base64Encoded: salt) else { return "" }
 
-        var derivedKey = [UInt8](repeating: 0, count: AuthService.derivedKeyLength)
+        guard let derived = CryptoShim.pbkdf2SHA256(
+            password: passwordData, salt: saltData,
+            iterations: AuthService.pbkdf2Iterations,
+            keyLength: AuthService.derivedKeyLength
+        ) else { return "" }
 
-        let status = passwordData.withUnsafeBytes { passwordPtr in
-            saltData.withUnsafeBytes { saltPtr in
-                CCKeyDerivationPBKDF(
-                    CCPBKDFAlgorithm(kCCPBKDF2),
-                    passwordPtr.baseAddress?.assumingMemoryBound(to: Int8.self),
-                    passwordData.count,
-                    saltPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
-                    saltData.count,
-                    CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                    AuthService.pbkdf2Iterations,
-                    &derivedKey,
-                    AuthService.derivedKeyLength
-                )
-            }
-        }
-
-        guard status == kCCSuccess else { return "" }
-        return Data(derivedKey).base64EncodedString()
+        return derived.base64EncodedString()
     }
 }

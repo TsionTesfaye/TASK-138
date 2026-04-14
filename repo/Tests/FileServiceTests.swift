@@ -1,5 +1,4 @@
 import Foundation
-import CommonCrypto
 
 /// Tests for FileService: format validation, size limits, SHA-256.
 final class FileServiceTests {

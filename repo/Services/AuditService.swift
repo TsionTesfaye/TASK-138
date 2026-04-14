@@ -1,5 +1,8 @@
 import Foundation
+#if canImport(os)
 import os.log
+#endif
+// Logger type is provided by os.log on Apple platforms, and by the shim in ServiceLogger.swift on Linux.
 
 /// design.md 4.10, 5.2
 /// Append-only audit logging with tombstone support.

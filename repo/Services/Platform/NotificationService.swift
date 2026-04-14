@@ -1,4 +1,8 @@
 import Foundation
+
+// UserNotifications is Apple-only. On Linux this class is unavailable entirely;
+// no tests exercise notifications, so this is safe.
+#if canImport(UserNotifications)
 import UserNotifications
 
 /// Real UNUserNotificationCenter wrapper for SLA alerts and reminders.
@@ -92,3 +96,4 @@ final class NotificationService {
         )
     }
 }
+#endif

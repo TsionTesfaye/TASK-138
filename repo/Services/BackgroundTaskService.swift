@@ -1,5 +1,8 @@
 import Foundation
+#if canImport(os)
 import os.log
+#endif
+// Logger type is provided by os.log on Apple platforms, and by the shim in ServiceLogger.swift on Linux.
 
 /// design.md 4.12, 6, 6.1
 /// Coordinates background tasks: SLA checks, media cleanup, carpool recalc, variance processing, exception detection.
