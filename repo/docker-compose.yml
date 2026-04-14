@@ -1,0 +1,8 @@
+services:
+  dealerops:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    command: ./run_tests.sh

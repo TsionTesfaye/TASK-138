@@ -1,0 +1,79 @@
+# ---------- Claude Code ----------
+.claude/
+CLAUDE.md.local
+.claude.local.md
+
+# ---------- Swift Package Manager ----------
+.build/
+.swiftpm/
+Package.resolved
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# ---------- Xcode ----------
+xcuserdata/
+*.xcuserstate
+*.xcuserdatad/
+DerivedData/
+build/
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.hmap
+*.xcarchive
+
+# ---------- Compiled test binary ----------
+run_tests
+run_tests.dSYM/
+
+# ---------- CocoaPods (if ever added) ----------
+Pods/
+Podfile.lock
+
+# ---------- Carthage (if ever added) ----------
+Carthage/Build/
+Carthage/Checkouts/
+
+# ---------- fastlane ----------
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/**/*.png
+fastlane/test_output
+
+# ---------- macOS ----------
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# ---------- Editors / IDEs ----------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.netrwhist
+Session.vim
+*.sublime-workspace
+*.sublime-project
+
+# ---------- Environments & secrets ----------
+.env
+.env.local
+.env.*.local
+*.pem
+*.p12
+*.mobileprovision
+
+# ---------- Logs & temp ----------
+*.log
+.tmp/
+tmp/
+tmp.*
