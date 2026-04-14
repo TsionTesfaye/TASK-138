@@ -6,7 +6,5 @@
 	<array>
 		<string>$(AppIdentifierPrefix)com.dealerops.encryption</string>
 	</array>
-	<key>com.apple.developer.default-data-protection</key>
-	<string>NSFileProtectionCompleteUntilFirstUserAuthentication</string>
 </dict>
 </plist>

@@ -7,32 +7,19 @@ echo "  DealerOps Test Suite"
 echo "========================================="
 echo ""
 
-# --- Identify UIKit-dependent files to exclude ---
-# These files import UIKit which is unavailable outside Xcode/iOS SDK.
-# They are excluded from swiftc compilation but remain in the repo for Xcode builds.
-
-EXCLUDE_FILES=(
-  "App/AppDelegate.swift"
-  "App/BootstrapViewController.swift"
-  "App/LoginViewController.swift"
-  "App/HomeViewController.swift"
-  "App/MainSplitViewController.swift"
-  "App/Views/DashboardViewController.swift"
-  "App/Views/Leads/LeadListViewController.swift"
-  "App/Views/Leads/LeadDetailViewController.swift"
-  "App/Views/Leads/CreateLeadViewController.swift"
-  "App/Views/Leads/AppointmentListViewController.swift"
-  "App/Views/Inventory/InventoryTaskListViewController.swift"
-  "App/Views/Inventory/CountEntryViewController.swift"
-  "App/Views/Carpool/CarpoolListViewController.swift"
-  "App/Views/Compliance/ExceptionListViewController.swift"
-  "App/Views/Compliance/CheckInViewController.swift"
-  "App/Views/Admin/AdminPanelViewController.swift"
-  "App/Views/Admin/PermissionScopeViewController.swift"
-  "App/Views/Shared/BaseTableViewController.swift"
-  "App/Views/Shared/FormViewController.swift"
-  "App/Views/Shared/MediaViewerViewController.swift"
-)
+# --- Platform detection ---
+# CoreData is Apple-only (macOS/iOS). On Linux (e.g. swift:5.9 Docker image) we must
+# exclude all CoreData-dependent files from compilation. UIKit files are always excluded
+# from command-line compilation (they require Xcode/iOS SDK).
+PLATFORM="$(uname -s)"
+IS_LINUX=0
+if [ "$PLATFORM" = "Linux" ]; then
+  IS_LINUX=1
+  echo "   Platform: Linux — CoreData sources will be excluded"
+else
+  echo "   Platform: $PLATFORM — compiling all sources"
+fi
+echo ""
 
 # --- Collect all compilable Swift files ---
 echo "🔧 Compiling Swift sources..."
@@ -40,24 +27,34 @@ echo ""
 
 SOURCES=""
 
-# Models
+# Models — always safe
 SOURCES="$SOURCES $(find Models -name '*.swift' | sort | tr '\n' ' ')"
 
-# Repositories
+# Repositories — protocols + InMemory implementations, always safe
 SOURCES="$SOURCES $(find Repositories -name '*.swift' | sort | tr '\n' ' ')"
 
-# Persistence
-SOURCES="$SOURCES $(find Persistence -name '*.swift' | sort | tr '\n' ' ')"
+# Persistence — all files import CoreData, exclude on Linux
+if [ $IS_LINUX -eq 0 ]; then
+  SOURCES="$SOURCES $(find Persistence -name '*.swift' | sort | tr '\n' ' ')"
+fi
 
-# Services (all, including Platform and Contracts)
+# Services (all, including Platform and Contracts) — safe
 SOURCES="$SOURCES $(find Services -name '*.swift' | sort | tr '\n' ' ')"
 
-# App layer — only non-UIKit files (ServiceContainer, ViewModels)
-SOURCES="$SOURCES App/ServiceContainer.swift"
+# App layer — only non-UIKit files.
+# ServiceContainer.swift imports CoreData; skip on Linux.
+if [ $IS_LINUX -eq 0 ]; then
+  SOURCES="$SOURCES App/ServiceContainer.swift"
+fi
+SOURCES="$SOURCES App/MediaCache.swift"
 SOURCES="$SOURCES $(find App/ViewModels -name '*.swift' 2>/dev/null | sort | tr '\n' ' ')"
 
-# Tests
-SOURCES="$SOURCES $(find Tests -name '*.swift' | sort | tr '\n' ' ')"
+# Tests — exclude CoreDataIntegrationTests.swift on Linux (imports CoreData)
+if [ $IS_LINUX -eq 1 ]; then
+  SOURCES="$SOURCES $(find Tests -name '*.swift' -not -name 'CoreDataIntegrationTests.swift' | sort | tr '\n' ' ')"
+else
+  SOURCES="$SOURCES $(find Tests -name '*.swift' | sort | tr '\n' ' ')"
+fi
 
 # Count files
 FILE_COUNT=$(echo "$SOURCES" | wc -w | tr -d ' ')

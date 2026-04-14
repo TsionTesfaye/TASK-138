@@ -34,6 +34,7 @@ let package = Package(
                 "Persistence",
                 "Services",
                 "App/ServiceContainer.swift",
+                "App/MediaCache.swift",
                 "App/ViewModels",
             ]
         ),

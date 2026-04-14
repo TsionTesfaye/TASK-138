@@ -29,8 +29,10 @@ struct TestRunner {
         print()
         StateMachineTests().runAll()
         print()
+        #if canImport(CoreData)
         CoreDataIntegrationTests().runAll()
         print()
+        #endif
         EncryptionTests().runAll()
         print()
         FileServiceTests().runAll()

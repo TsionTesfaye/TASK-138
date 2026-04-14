@@ -92,18 +92,23 @@ final class CountEntryViewController: FormViewController {
     }
 
     @objc private func didTapCompute() {
+        clearFormError()
         guard let batchId = currentBatchId else { showFormError("No active batch"); return }
-        let variances = viewModel.computeVariances(batchId: batchId)
-        if variances.isEmpty {
-            resultsLabel.text = "No variances detected"
-            resultsLabel.textColor = .systemGreen
-        } else {
-            let text = variances.map { v in
-                let approval = v.requiresApproval ? " [REQUIRES APPROVAL]" : ""
-                return "\(v.type.rawValue): expected \(v.expectedQty), counted \(v.countedQty)\(approval)"
-            }.joined(separator: "\n")
-            resultsLabel.text = "Variances:\n\(text)"
-            resultsLabel.textColor = .systemOrange
+        switch viewModel.computeVariances(batchId: batchId) {
+        case .success(let variances):
+            if variances.isEmpty {
+                resultsLabel.text = "No variances detected"
+                resultsLabel.textColor = .systemGreen
+            } else {
+                let text = variances.map { v in
+                    let approval = v.requiresApproval ? " [REQUIRES APPROVAL]" : ""
+                    return "\(v.type.rawValue): expected \(v.expectedQty), counted \(v.countedQty)\(approval)"
+                }.joined(separator: "\n")
+                resultsLabel.text = "Variances:\n\(text)"
+                resultsLabel.textColor = .systemOrange
+            }
+        case .failure(let err):
+            showFormError(err.message)
         }
     }
 }
