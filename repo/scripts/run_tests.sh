@@ -69,11 +69,13 @@ SOURCES="$SOURCES $(find Services -name '*.swift' | sort | tr '\n' ' ')"
 
 # App layer — only non-UIKit files.
 # ServiceContainer.swift imports CoreData; skip on Linux.
+# App/ViewModels/* all reference ServiceContainer, so they're also skipped on Linux.
+# Tests do not depend on ViewModels.
 if [ $IS_LINUX -eq 0 ]; then
   SOURCES="$SOURCES App/ServiceContainer.swift"
+  SOURCES="$SOURCES $(find App/ViewModels -name '*.swift' 2>/dev/null | sort | tr '\n' ' ')"
 fi
 SOURCES="$SOURCES App/MediaCache.swift"
-SOURCES="$SOURCES $(find App/ViewModels -name '*.swift' 2>/dev/null | sort | tr '\n' ' ')"
 
 # Tests — exclude CoreDataIntegrationTests.swift on Linux (imports CoreData)
 if [ $IS_LINUX -eq 1 ]; then
