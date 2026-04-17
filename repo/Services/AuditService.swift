@@ -4,7 +4,6 @@ import os.log
 #endif
 // Logger type is provided by os.log on Apple platforms, and by the shim in ServiceLogger.swift on Linux.
 
-/// design.md 4.10, 5.2
 /// Append-only audit logging with tombstone support.
 /// Every security-relevant action must be logged here.
 final class AuditService {
@@ -19,7 +18,7 @@ final class AuditService {
     // MARK: - Logging
 
     /// Append an audit log entry. This is the sole write path for audit logs.
-    /// design.md 5.2: Missing audit entry = system violation
+    /// Missing audit entry = system violation
     func log(actorId: UUID, action: String, entityId: UUID) {
         let entry = AuditLog(
             id: UUID(),
@@ -41,8 +40,10 @@ final class AuditService {
     // MARK: - Tombstone Deletion
 
     /// "Delete" a log by marking it as tombstone. The entry remains in storage.
-    /// design.md: deleted logs become tombstones, not silent removals
-    func deleteLog(logId: UUID, deletedBy actorId: UUID) -> ServiceResult<Void> {
+    func deleteLog(by user: User, logId: UUID) -> ServiceResult<Void> {
+        guard user.role == .administrator || user.role == .complianceReviewer else {
+            return .failure(.permissionDenied)
+        }
         guard var entry = auditLogRepo.findById(logId) else {
             return .failure(.entityNotFound)
         }
@@ -51,11 +52,10 @@ final class AuditService {
         }
         entry.tombstone = true
         entry.deletedAt = Date()
-        entry.deletedBy = actorId
+        entry.deletedBy = user.id
         do {
             try auditLogRepo.save(entry)
-            // Log the deletion itself
-            log(actorId: actorId, action: "audit_log_tombstoned", entityId: logId)
+            log(actorId: user.id, action: "audit_log_tombstoned", entityId: logId)
             return .success(())
         } catch {
             return .failure(ServiceError(code: "AUDIT_SAVE_FAIL", message: error.localizedDescription))
@@ -65,7 +65,6 @@ final class AuditService {
     // MARK: - Retention
 
     /// Purge tombstoned entries older than 1 year.
-    /// design.md: retained for 1 year
     func purgeOldTombstones(olderThan date: Date) -> Int {
         let old = auditLogRepo.findTombstonesOlderThan(date)
         var purged = 0
@@ -80,17 +79,26 @@ final class AuditService {
         return purged
     }
 
-    // MARK: - Query
+    // MARK: - Query (requires administrator or complianceReviewer)
 
-    func logsForEntity(_ entityId: UUID) -> [AuditLog] {
-        auditLogRepo.findByEntityId(entityId)
+    func logsForEntity(by user: User, _ entityId: UUID) -> ServiceResult<[AuditLog]> {
+        guard user.role == .administrator || user.role == .complianceReviewer else {
+            return .failure(.permissionDenied)
+        }
+        return .success(auditLogRepo.findByEntityId(entityId))
     }
 
-    func logsForActor(_ actorId: UUID) -> [AuditLog] {
-        auditLogRepo.findByActorId(actorId)
+    func logsForActor(by user: User, _ actorId: UUID) -> ServiceResult<[AuditLog]> {
+        guard user.role == .administrator || user.role == .complianceReviewer else {
+            return .failure(.permissionDenied)
+        }
+        return .success(auditLogRepo.findByActorId(actorId))
     }
 
-    func allLogs() -> [AuditLog] {
-        auditLogRepo.findAll()
+    func allLogs(by user: User) -> ServiceResult<[AuditLog]> {
+        guard user.role == .administrator || user.role == .complianceReviewer else {
+            return .failure(.permissionDenied)
+        }
+        return .success(auditLogRepo.findAll())
     }
 }

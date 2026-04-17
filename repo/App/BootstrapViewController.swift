@@ -1,7 +1,6 @@
 import UIKit
 
 /// One-time bootstrap screen: creates the first Administrator.
-/// design.md 4.1, questions.md Q1.
 /// This screen only appears when User.count == 0.
 final class BootstrapViewController: UIViewController {
 

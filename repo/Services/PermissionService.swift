@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 4.15, 4.19
 /// Central permission enforcement. ALL services must call validateAccess before writes/sensitive reads.
 /// Rules: No bypass allowed. Missing permission = hard failure.
 final class PermissionService {
@@ -14,7 +13,7 @@ final class PermissionService {
     // MARK: - Role-Based Access (Matrix)
 
     /// Check if user's role permits the given action on the given module.
-    /// Uses PermissionMatrix from design.md 4.19.
+    /// Uses PermissionMatrix
     func validateAccess(user: User, action: String, module: PermissionModule) -> ServiceResult<Void> {
         guard user.isActive else {
             return .failure(.accountInactive)
@@ -28,7 +27,7 @@ final class PermissionService {
     // MARK: - Scope-Based Access
 
     /// Check if user has a valid scope for the given site and functionKey at the current date.
-    /// design.md: default rule: no scope = no access
+    /// default rule: no scope = no access
     /// Note: Administrators bypass scope checks (full access).
     func validateScope(user: User, site: String, functionKey: String, at date: Date = Date()) -> ServiceResult<Void> {
         guard user.isActive else {

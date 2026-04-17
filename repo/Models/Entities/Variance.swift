@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.13
 struct Variance: Equatable {
     let id: UUID
     var siteId: String

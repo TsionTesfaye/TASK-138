@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.1
 struct User: Equatable {
     let id: UUID
     var username: String

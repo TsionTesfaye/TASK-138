@@ -44,6 +44,7 @@ final class LeadDetailViewController: BaseTableViewController {
         }
 
         sheet.addAction(UIAlertAction(title: "Add Note", style: .default) { [weak self] _ in self?.promptAddNote() })
+        sheet.addAction(UIAlertAction(title: "Add Tag", style: .default) { [weak self] _ in self?.promptAddTag() })
         sheet.addAction(UIAlertAction(title: "Add Reminder", style: .default) { [weak self] _ in self?.promptAddReminder() })
         sheet.addAction(UIAlertAction(title: "Schedule Appointment", style: .default) { [weak self] _ in self?.promptAppointment() })
         sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
@@ -73,10 +74,23 @@ final class LeadDetailViewController: BaseTableViewController {
     }
 
     private func promptAddReminder() {
-        let alert = UIAlertController(title: "Set Reminder", message: "Reminder in 1 hour", preferredStyle: .alert)
+        let picker = UIDatePicker()
+        picker.datePickerMode = .dateAndTime
+        picker.preferredDatePickerStyle = .wheels
+        picker.minimumDate = Date().addingTimeInterval(60)
+        picker.date = Date().addingTimeInterval(3600)
+
+        let alert = UIAlertController(title: "Set Reminder", message: "\n\n\n\n\n\n\n\n\n", preferredStyle: .alert)
+        picker.translatesAutoresizingMaskIntoConstraints = false
+        alert.view.addSubview(picker)
+        NSLayoutConstraint.activate([
+            picker.topAnchor.constraint(equalTo: alert.view.topAnchor, constant: 48),
+            picker.leadingAnchor.constraint(equalTo: alert.view.leadingAnchor),
+            picker.trailingAnchor.constraint(equalTo: alert.view.trailingAnchor),
+        ])
         alert.addAction(UIAlertAction(title: "Set", style: .default) { [weak self] _ in
             guard let self = self else { return }
-            let dueAt = Date().addingTimeInterval(3600)
+            let dueAt = picker.date
             switch self.viewModel.addReminder(leadId: self.leadId, dueAt: dueAt) {
             case .success(let r):
                 NotificationService.shared.scheduleReminderNotification(reminderId: r.id, dueAt: dueAt, message: "Follow up on lead")
@@ -89,10 +103,23 @@ final class LeadDetailViewController: BaseTableViewController {
     }
 
     private func promptAppointment() {
-        let alert = UIAlertController(title: "Schedule Appointment", message: "Appointment in 24 hours", preferredStyle: .alert)
+        let picker = UIDatePicker()
+        picker.datePickerMode = .dateAndTime
+        picker.preferredDatePickerStyle = .wheels
+        picker.minimumDate = Date().addingTimeInterval(60)
+        picker.date = Date().addingTimeInterval(86400)
+
+        let alert = UIAlertController(title: "Schedule Appointment", message: "\n\n\n\n\n\n\n\n\n", preferredStyle: .alert)
+        picker.translatesAutoresizingMaskIntoConstraints = false
+        alert.view.addSubview(picker)
+        NSLayoutConstraint.activate([
+            picker.topAnchor.constraint(equalTo: alert.view.topAnchor, constant: 48),
+            picker.leadingAnchor.constraint(equalTo: alert.view.leadingAnchor),
+            picker.trailingAnchor.constraint(equalTo: alert.view.trailingAnchor),
+        ])
         alert.addAction(UIAlertAction(title: "Schedule", style: .default) { [weak self] _ in
             guard let self = self else { return }
-            let startTime = Date().addingTimeInterval(86400)
+            let startTime = picker.date
             switch self.viewModel.createAppointment(leadId: self.leadId, startTime: startTime) {
             case .success(let appt):
                 NotificationService.shared.scheduleAppointmentSLAAlert(appointmentId: appt.id, startTime: startTime)
@@ -104,25 +131,41 @@ final class LeadDetailViewController: BaseTableViewController {
         present(alert, animated: true)
     }
 
-    // MARK: - Table (Sections: Info, Notes, Reminders)
+    private func promptAddTag() {
+        let alert = UIAlertController(title: "Add Tag", message: nil, preferredStyle: .alert)
+        alert.addTextField { $0.placeholder = "Tag name (e.g. hot-lead)" }
+        alert.addAction(UIAlertAction(title: "Add", style: .default) { [weak self] _ in
+            guard let self = self, let name = alert.textFields?.first?.text, !name.isEmpty else { return }
+            switch self.viewModel.addTag(leadId: self.leadId, tagName: name) {
+            case .success: self.viewModel.loadLeadDetail(id: self.leadId)
+            case .failure(let err): self.showError(err.message)
+            }
+        })
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(alert, animated: true)
+    }
 
-    override func numberOfSections(in tableView: UITableView) -> Int { 3 }
+    // MARK: - Table (Sections: Info, Notes, Tags, Reminders)
+
+    override func numberOfSections(in tableView: UITableView) -> Int { 4 }
 
     override func tableView(_ tv: UITableView, titleForHeaderInSection section: Int) -> String? {
         switch section {
         case 0: return "Information"
         case 1: return "Notes (\(viewModel.notes.count))"
-        case 2: return "Reminders (\(viewModel.reminders.count))"
+        case 2: return "Tags (\(viewModel.tags.count))"
+        case 3: return "Reminders (\(viewModel.reminders.count))"
         default: return nil
         }
     }
 
     override func tableView(_ tv: UITableView, numberOfRowsInSection section: Int) -> Int {
-        guard let lead = viewModel.selectedLead else { return 0 }
+        guard viewModel.selectedLead != nil else { return 0 }
         switch section {
         case 0: return 7
         case 1: return max(viewModel.notes.count, 1)
-        case 2: return max(viewModel.reminders.count, 1)
+        case 2: return max(viewModel.tags.count, 1)
+        case 3: return max(viewModel.reminders.count, 1)
         default: return 0
         }
     }
@@ -161,6 +204,18 @@ final class LeadDetailViewController: BaseTableViewController {
                 config.secondaryText = "\(note.createdAt)"
             }
         case 2:
+            if viewModel.tags.isEmpty {
+                config.text = "No tags"
+                config.textProperties.color = .secondaryLabel
+                cell.selectionStyle = .none
+            } else {
+                let assignment = viewModel.tags[indexPath.row]
+                config.text = "#\(assignment.tagId)"
+                config.image = UIImage(systemName: "tag")
+                config.imageProperties.tintColor = .systemBlue
+                cell.selectionStyle = .default
+            }
+        case 3:
             if viewModel.reminders.isEmpty {
                 config.text = "No reminders"
                 config.textProperties.color = .secondaryLabel
@@ -173,7 +228,23 @@ final class LeadDetailViewController: BaseTableViewController {
         }
 
         cell.contentConfiguration = config
-        cell.selectionStyle = .none
+        if indexPath.section != 2 { cell.selectionStyle = .none }
         return cell
+    }
+
+    override func tableView(_ tv: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tv.deselectRow(at: indexPath, animated: true)
+        guard indexPath.section == 2, !viewModel.tags.isEmpty else { return }
+        let assignment = viewModel.tags[indexPath.row]
+        let sheet = UIAlertController(title: "Tag", message: "Tag ID: \(assignment.tagId)", preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Remove Tag", style: .destructive) { [weak self] _ in
+            guard let self = self else { return }
+            switch self.viewModel.removeTag(leadId: self.leadId, tagId: assignment.tagId) {
+            case .success: self.viewModel.loadLeadDetail(id: self.leadId)
+            case .failure(let err): self.showError(err.message)
+            }
+        })
+        sheet.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+        present(sheet, animated: true)
     }
 }

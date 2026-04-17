@@ -1,7 +1,6 @@
 import UIKit
 
 /// Media viewer with watermark overlay.
-/// design.md: "DealerOps . Confidential" watermark applied at preview level.
 final class MediaViewerViewController: UIViewController {
 
     private let container: ServiceContainer

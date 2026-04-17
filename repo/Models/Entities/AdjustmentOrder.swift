@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.14
 struct AdjustmentOrder: Equatable {
     let id: UUID
     var siteId: String

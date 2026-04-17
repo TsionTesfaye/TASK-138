@@ -168,27 +168,6 @@ final class CoreDataPoolOrderRepository: PoolOrderRepository {
     func delete(_ id: UUID) throws { try CoreDataHelpers.delete(id: id, entityName: entityName, context: context) }
 }
 
-// MARK: - RouteSegment
-
-final class CoreDataRouteSegmentRepository: RouteSegmentRepository {
-    private let context: NSManagedObjectContext
-    private let entityName = "CDRouteSegment"
-    init(context: NSManagedObjectContext) { self.context = context }
-
-    func findById(_ id: UUID) -> RouteSegment? {
-        CoreDataHelpers.findById(id, entityName: entityName, context: context).map { RouteSegment(mo: $0) }
-    }
-    func findByPoolOrderId(_ poolOrderId: UUID) -> [RouteSegment] {
-        CoreDataHelpers.fetch(entityName: entityName,
-            predicate: NSPredicate(format: "poolOrderId == %@", poolOrderId as CVarArg), context: context
-        ).map { RouteSegment(mo: $0) }.sorted { $0.sequence < $1.sequence }
-    }
-    func save(_ segment: RouteSegment) throws {
-        try CoreDataHelpers.upsert(id: segment.id, entityName: entityName, context: context) { mo in segment.apply(to: mo) }
-    }
-    func delete(_ id: UUID) throws { try CoreDataHelpers.delete(id: id, entityName: entityName, context: context) }
-}
-
 // MARK: - CountTask
 
 final class CoreDataCountTaskRepository: CountTaskRepository {
@@ -362,6 +341,10 @@ final class CoreDataPermissionScopeRepository: PermissionScopeRepository {
             predicate: NSPredicate(format: "userId == %@ AND site == %@ AND functionKey == %@ AND validFrom <= %@ AND validTo >= %@",
                 userId as CVarArg, site, functionKey, date as CVarArg, date as CVarArg),
             context: context).map { PermissionScope(mo: $0) }
+    }
+    func findAll() -> [PermissionScope] {
+        CoreDataHelpers.fetch(entityName: entityName, predicate: nil, context: context)
+            .map { PermissionScope(mo: $0) }
     }
     func save(_ scope: PermissionScope) throws {
         try CoreDataHelpers.upsert(id: scope.id, entityName: entityName, context: context) { mo in scope.apply(to: mo) }

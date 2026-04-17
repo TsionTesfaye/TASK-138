@@ -4,7 +4,6 @@ import Security
 #endif
 
 /// Real Keychain integration for storing per-record encryption keys.
-/// design.md section 5: keys stored in Keychain.
 protocol KeychainServiceProtocol {
     func storeKey(recordId: UUID, key: Data) -> Bool
     func retrieveKey(recordId: UUID) -> Data?

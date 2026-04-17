@@ -6,8 +6,14 @@ final class LeadViewModel: BaseViewModel {
     private(set) var selectedLead: Lead?
     private(set) var notes: [Note] = []
     private(set) var reminders: [Reminder] = []
+    private(set) var tags: [TagAssignment] = []
     var filterStatus: LeadStatus? = nil
     var site: String = ""
+
+    override init(container: ServiceContainer) {
+        super.init(container: container)
+        site = container.currentSite
+    }
 
     func loadLeads() {
         guard let user = currentUser() else { return }
@@ -43,6 +49,9 @@ final class LeadViewModel: BaseViewModel {
             if case .success(let r) = container.reminderService.findByEntity(by: user, site: site, entityId: id, entityType: "Lead") {
                 reminders = r
             }
+            if case .success(let t) = container.noteService.getTagsForEntity(by: user, site: site, entityId: id, entityType: "Lead") {
+                tags = t
+            }
             setState(.loaded)
         case .failure(let err):
             setState(.error("\(err.code): \(err.message)"))
@@ -77,5 +86,20 @@ final class LeadViewModel: BaseViewModel {
     func createAppointment(leadId: UUID, startTime: Date) -> ServiceResult<Appointment> {
         guard let user = currentUser() else { return .failure(.sessionExpired) }
         return container.appointmentService.createAppointment(by: user, site: site, leadId: leadId, startTime: startTime, operationId: UUID())
+    }
+
+    func addTag(leadId: UUID, tagName: String) -> ServiceResult<Void> {
+        guard let user = currentUser() else { return .failure(.sessionExpired) }
+        switch container.noteService.getOrCreateTag(name: tagName) {
+        case .success(let tag):
+            return container.noteService.assignTag(by: user, site: site, tagId: tag.id, entityId: leadId, entityType: "Lead")
+        case .failure(let err):
+            return .failure(err)
+        }
+    }
+
+    func removeTag(leadId: UUID, tagId: UUID) -> ServiceResult<Void> {
+        guard let user = currentUser() else { return .failure(.sessionExpired) }
+        return container.noteService.removeTag(by: user, site: site, tagId: tagId, entityId: leadId, entityType: "Lead")
     }
 }

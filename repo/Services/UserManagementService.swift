@@ -1,10 +1,10 @@
 import Foundation
 
-/// design.md 4.18
 /// Admin-only user management: create, update role, deactivate, reset lockout.
 final class UserManagementService {
 
     private let userRepo: UserRepository
+    private let roleRepo: RoleRepository
     private let permissionService: PermissionService
     private let authService: AuthService
     private let auditService: AuditService
@@ -12,12 +12,14 @@ final class UserManagementService {
 
     init(
         userRepo: UserRepository,
+        roleRepo: RoleRepository,
         permissionService: PermissionService,
         authService: AuthService,
         auditService: AuditService,
         operationLogRepo: OperationLogRepository
     ) {
         self.userRepo = userRepo
+        self.roleRepo = roleRepo
         self.permissionService = permissionService
         self.authService = authService
         self.auditService = auditService
@@ -90,6 +92,10 @@ final class UserManagementService {
 
         if case .failure(let err) = permissionService.requireAdmin(user: admin) {
             return .failure(err)
+        }
+
+        guard roleRepo.findByName(newRole) != nil else {
+            return .failure(.entityNotFound)
         }
 
         guard var user = userRepo.findById(userId) else {

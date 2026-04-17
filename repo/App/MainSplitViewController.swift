@@ -72,15 +72,21 @@ final class MainSplitViewController: UISplitViewController, UISplitViewControlle
             vcs.append(inv)
         }
 
+        if PermissionMatrix.canPerform(role: user?.role ?? .salesAssociate, action: "read", module: .carpool) {
+            let carpool = UINavigationController(rootViewController: CarpoolListViewController(container: container))
+            carpool.tabBarItem = UITabBarItem(title: "Carpool", image: UIImage(systemName: "car.2"), tag: 3)
+            vcs.append(carpool)
+        }
+
         if PermissionMatrix.canPerform(role: user?.role ?? .complianceReviewer, action: "read", module: .appeals) {
             let compliance = UINavigationController(rootViewController: ExceptionListViewController(container: container))
-            compliance.tabBarItem = UITabBarItem(title: "Compliance", image: UIImage(systemName: "exclamationmark.shield"), tag: 3)
+            compliance.tabBarItem = UITabBarItem(title: "Compliance", image: UIImage(systemName: "exclamationmark.shield"), tag: 4)
             vcs.append(compliance)
         }
 
         if user?.role == .administrator {
             let admin = UINavigationController(rootViewController: AdminPanelViewController(container: container))
-            admin.tabBarItem = UITabBarItem(title: "Admin", image: UIImage(systemName: "gearshape"), tag: 4)
+            admin.tabBarItem = UITabBarItem(title: "Admin", image: UIImage(systemName: "gearshape"), tag: 5)
             vcs.append(admin)
         }
 

@@ -1,38 +1,33 @@
-# DealerOps Static Delivery Acceptance & Architecture Audit (2026-04-14)
+# DealerOps Static Delivery Acceptance & Architecture Audit
 
 ## 1. Verdict
 - Overall conclusion: **Partial Pass**
-- Rationale: The repository is materially aligned with the Prompt and contains substantial offline iOS business logic, persistence, and tests. However, there are multiple **Blocker/High** issues in authorization/data isolation and requirement-fit gaps that prevent full acceptance.
 
 ## 2. Scope and Static Verification Boundary
 - Reviewed:
-  - Documentation, project manifests, run/test scripts, Xcode project metadata
-  - App entry points, authentication/session/permission services
-  - Core business services (leads, appointments, inventory, carpool, exceptions/appeals, files, background tasks)
-  - Core Data model/mappings/repositories and entity definitions
-  - Test suite structure and static test coverage evidence
+  - Project docs/config: `README.md`, `Package.swift`, `DealerOps.xcodeproj/project.pbxproj`, `Resources/Info.plist`, `Resources/DealerOps.entitlements`
+  - App entry/auth/session/UI wiring: `App/AppDelegate.swift`, `App/LoginViewController.swift`, `App/MainSplitViewController.swift`, admin/compliance/leads/inventory/carpool view controllers and view models
+  - Business services: auth, permissions, leads/appointments/reminders/SLA, carpool, inventory, exception/appeal, files, background tasks, audit
+  - Persistence/model/repositories: Core Data model builder, encrypted lead repository, keychain/encryption services, repository implementations
+  - Tests and harness: all `Tests/*.swift`, `scripts/run_tests.sh`, `run_tests.sh`
 - Not reviewed:
-  - Any behavior requiring actual app launch, iOS runtime scheduling behavior, biometrics runtime behavior, notification delivery, UI rendering on device
+  - Runtime behavior under real iOS execution, simulator/device UX rendering, performance, memory profile, BGTask scheduling behavior on device
 - Intentionally not executed:
-  - Project startup, tests, Docker, external services
-- Claims requiring manual verification:
-  - Cold-start <1.5s on iPhone 11 class hardware
-  - Actual Split View/device rotation behavior and Dynamic Type behavior on real devices
-  - BGTask scheduling/execution reliability on iOS background scheduler
-  - Runtime memory-pressure behavior
+  - App run, tests, Docker, background services, network calls
+- Manual verification required for:
+  - Cold start under 1.5s on iPhone 11-class hardware
+  - Real BGTask execution frequency/battery behavior
+  - Visual polish/interaction quality at runtime across iPhone/iPad orientations and Split View
 
 ## 3. Repository / Requirement Mapping Summary
-- Prompt core goal mapped: offline iOS dealer operations suite spanning auth/roles, lead lifecycle + SLA, appointments, carpool matching, inventory variance workflow, compliance exceptions/appeals, on-device persistence/security, and background cleanup/processing.
+- Prompt core goal mapped: offline iOS dealership suite with local auth+biometric re-entry, role/scoped access, lead/appointment/reminder lifecycle+SLA, inventory count/variance/adjustments, carpool matching, compliance exceptions/appeals+evidence, Core Data persistence, at-rest protection, and background cleanup/recalculation.
 - Main implementation areas mapped:
-  - UIKit app shell and role-gated navigation (`App/*.swift`, `App/Views/*`)
-  - Domain + state models (`Models/Entities`, `Models/Enums`)
-  - Business logic services (`Services/*.swift`)
-  - Persistence layer (`Persistence/*`, `Repositories/*`)
-  - Static tests (`Tests/*`)
-- Key mismatch themes:
-  - Site/lot-level data isolation is not represented in core entities/repositories
-  - Object-level authorization is inconsistent across mutation/read paths
-  - Some required background/deferred behaviors are only partially implemented
+  - Auth/session/biometric: `Services/AuthService.swift`, `Services/SessionService.swift`, `Services/Platform/BiometricService.swift`
+  - RBAC/scope: `Services/PermissionService.swift`, `Models/Enums/PermissionAction.swift`
+  - Domain modules: `Services/*Service.swift`
+  - Persistence/security: `Persistence/*`, `Services/Platform/EncryptionService.swift`, `Services/Platform/KeychainService.swift`
+  - UIKit shell: `App/*`, including split/tab adaptive navigation and form/table controllers
+  - Test surface: service/viewmodel/integration test files in `Tests/`
 
 ## 4. Section-by-section Review
 
@@ -40,234 +35,243 @@
 
 #### 4.1.1 Documentation and static verifiability
 - Conclusion: **Pass**
-- Rationale: Clear setup/test/lint instructions exist and project structure is documented; entry points and manifests are statically consistent.
-- Evidence: `README.md:12`, `README.md:27`, `README.md:45`, `run_tests.sh:1`, `scripts/run_tests.sh:1`, `DealerOps.xcodeproj/project.pbxproj:631`, `Package.swift:4`
+- Rationale: Build/run/test/lint instructions are present and statically coherent with repository layout and scripts.
+- Evidence:
+  - `README.md:13-49`, `README.md:145-155`
+  - `scripts/run_tests.sh:10-57`, `run_tests.sh:1-4`
+  - `Package.swift:10-46`
 
 #### 4.1.2 Material deviation from Prompt
 - Conclusion: **Partial Pass**
-- Rationale: Core domain modules align with Prompt, but significant deviations exist: no site field across business entities (weakens lot/site isolation requirement), background deferred matching/variance calculations are not materially implemented, and multi-passenger merging behavior is incomplete.
-- Evidence: `Models/Entities/Lead.swift:4`, `Models/Entities/InventoryItem.swift:4`, `Services/BackgroundTaskService.swift:73`, `Services/BackgroundTaskService.swift:84`, `Services/CarpoolService.swift:148`, `Services/CarpoolService.swift:267`
-- Manual verification note: None (static evidence sufficient for gap existence).
+- Rationale: The codebase is strongly aligned to the requested domain, but permission-role semantics still diverge from prompt least-privilege intent, and site-context handling remains unsafe.
+- Evidence:
+  - Prompt-role divergence in matrix: `Models/Enums/PermissionAction.swift:42-81`
+  - Compliance reviewer can read leads/inventory despite prompt scope: `Models/Enums/PermissionAction.swift:64-66`
+  - Admin/site context can resolve to empty string: `App/LoginViewController.swift:85-86`, `App/LoginViewController.swift:113-114`
 
 ### 4.2 Delivery Completeness
 
-#### 4.2.1 Core explicit requirement coverage
+#### 4.2.1 Core requirements coverage
 - Conclusion: **Partial Pass**
-- Rationale: Many explicit requirements are implemented (offline auth/roles, lead workflow, inventory variance approvals, appeal workflow, encryption, local persistence), but some are incompletely met:
-  - Missing robust site/lot data partitioning in data model/repositories
-  - Closed-lead archival appears limited to `closed_won` only
-  - Basic file format validation relies on caller-provided enum, not content signature
-  - Deferred matching/variance processing background behavior is shallow
-- Evidence: `Services/LeadService.swift:195`, `Persistence/CoreDataRepositories/CoreDataLeadRepository.swift:33`, `Services/FileService.swift:56`, `Services/BackgroundTaskService.swift:84`
+- Rationale: Most major modules are implemented (offline auth, lead/appointment/reminder, inventory, carpool, exceptions/appeals, evidence, Core Data), but key role/authorization semantics are misfit and some constraints remain only partially evidenced.
+- Evidence:
+  - Core modules wired: `App/ServiceContainer.swift:128-188`
+  - Lead intake + workflow: `Services/LeadService.swift:41-156`
+  - Carpool thresholds/windows: `Services/CarpoolService.swift:156-203`
+  - Evidence limits/hash/watermark/lifecycle: `Services/FileService.swift:63-77`, `Services/FileService.swift:79-117`, `Services/FileService.swift:205-222`
+  - Exception detection + appeal writeback: `Services/ExceptionService.swift:233-345`, `Services/AppealService.swift:159-170`, `Services/AppealService.swift:211-216`
 
-#### 4.2.2 End-to-end deliverable vs partial/demo
+#### 4.2.2 End-to-end 0→1 deliverable vs partial/demo
 - Conclusion: **Pass**
-- Rationale: The repository has a full application structure, layered services/repositories, Core Data model, and broad test suite; not a single-file demo.
-- Evidence: `README.md:47`, `App/AppDelegate.swift:4`, `Services/LeadService.swift:5`, `Persistence/PersistenceController.swift:48`, `Tests/TestRunner.swift:4`
+- Rationale: Structured multi-module app with persistence, view models, UI screens, and extensive tests; not a single-file demo.
+- Evidence:
+  - Project structure summary: `README.md:145-155`
+  - UIKit + services + persistence + tests directories present: repository tree
+  - Test harness includes broad suites: `Tests/TestRunner.swift:8-59`
 
 ### 4.3 Engineering and Architecture Quality
 
-#### 4.3.1 Structure and module decomposition
+#### 4.3.1 Structure and decomposition
 - Conclusion: **Pass**
-- Rationale: Layering is clear and mostly coherent (UI/ViewModels/Services/Repositories/Persistence). File/module boundaries are reasonable.
-- Evidence: `README.md:59`, `App/ServiceContainer.swift:119`, `Services/*.swift`, `Repositories/*.swift`, `Persistence/*.swift`
+- Rationale: Clear layering and service/repository separation with dependency injection and protocol-backed repositories.
+- Evidence:
+  - DI + module wiring: `App/ServiceContainer.swift:7-203`
+  - Repository protocols: e.g., `Repositories/LeadRepository.swift:3-13`, `Repositories/AppointmentRepository.swift:3-12`
 
-#### 4.3.2 Maintainability and extensibility
+#### 4.3.2 Maintainability/extensibility
 - Conclusion: **Partial Pass**
-- Rationale: Architecture is extensible, but maintainability/security risks remain due to inconsistent authorization patterns and reliance on site argument without site-backed data filtering.
-- Evidence: `Services/LeadService.swift:217`, `Services/LeadService.swift:95`, `Services/AppointmentService.swift:72`, `Models/Entities/Lead.swift:4`, `Repositories/LeadRepository.swift:3`
+- Rationale: Architecture is generally maintainable, but some domain entities are effectively dead in core logic (e.g., route segments unused in matching), and centralized site context handling is fragile.
+- Evidence:
+  - `RouteSegment` injected but unused by matching logic: `Services/CarpoolService.swift:7-31`, no operational use from search evidence
+  - Mutable global site context default empty: `App/ServiceContainer.swift:41-44`
 
 ### 4.4 Engineering Details and Professionalism
 
-#### 4.4.1 Error handling, logging, validation, API design
+#### 4.4.1 Error handling/logging/validation
 - Conclusion: **Partial Pass**
-- Rationale: Structured errors and centralized logging exist, with significant validation in many paths. Gaps remain in content-based file validation and several authorization edge-cases.
-- Evidence: `Services/Contracts/ServiceError.swift:5`, `Services/Contracts/ServiceLogger.swift:7`, `Services/FileService.swift:56`, `Services/AppealService.swift:126`, `Services/LeadService.swift:95`
+- Rationale: Structured service errors and logging exist; key validations are present; however authorization inconsistencies and unrestricted audit-log read API reduce professional robustness.
+- Evidence:
+  - Structured errors: `Services/Contracts/ServiceError.swift:5-58`
+  - Logging categories: `Services/Contracts/ServiceLogger.swift:41-54`
+  - Unrestricted audit-log read API: `Services/AuditService.swift:95-97`
 
-#### 4.4.2 Product-grade organization vs demo-level
+#### 4.4.2 Product-like organization vs demo
 - Conclusion: **Pass**
-- Rationale: Delivery shape resembles a real product codebase with modules, persistence, security services, and tests.
-- Evidence: `README.md:66`, `App/MainSplitViewController.swift:5`, `Services/BackgroundTaskService.swift:7`, `Tests/CoreDataIntegrationTests.swift:4`
+- Rationale: App resembles product architecture with persistence model, background tasks, and role-based screens.
+- Evidence:
+  - Background task orchestration: `Services/BackgroundTaskService.swift:47-118`
+  - Core Data model with broad entities: `Persistence/PersistenceController.swift:57-98`, `Persistence/PersistenceController.swift:360-498`
 
 ### 4.5 Prompt Understanding and Requirement Fit
 
-#### 4.5.1 Business goal, semantics, constraints fit
+#### 4.5.1 Business/constraint fit
 - Conclusion: **Partial Pass**
-- Rationale: Major business flows are present, but key semantics are weakened by:
-  - Site/lot isolation not encoded in records
-  - Multi-passenger carpool merge behavior not fully supported
-  - Background deferred computations only partially implemented
-- Evidence: `Models/Entities/PoolOrder.swift:4`, `Services/CarpoolService.swift:148`, `Services/CarpoolService.swift:267`, `Services/BackgroundTaskService.swift:84`
+- Rationale: Implementation understands the offline dealership scenario well, but least-privilege role boundaries and site-context derivation still do not fully match prompt constraints.
+- Evidence:
+  - Role matrix mismatch against prompt least-privilege intent: `Models/Enums/PermissionAction.swift:42-81`
+  - Compliance reviewer can access leads/inventory modules: `Models/Enums/PermissionAction.swift:64-66`, `App/MainSplitViewController.swift:63-71`
+  - Admin/site context derived from scopes and may be empty: `App/LoginViewController.swift:85-86`, `App/LoginViewController.swift:113-114`
 
-### 4.6 Aesthetics (frontend-only/full-stack)
+### 4.6 Aesthetics (frontend-only)
 
-#### 4.6.1 Visual and interaction quality
+#### 4.6.1 Visual/interaction quality
 - Conclusion: **Cannot Confirm Statistically**
-- Rationale: UIKit code indicates use of Dynamic Type, safe area constraints, and system colors, but actual rendered visual quality and interaction feedback on device cannot be proven statically.
-- Evidence: `App/Views/Shared/FormViewController.swift:15`, `App/Views/Leads/LeadListViewController.swift:69`, `App/MainSplitViewController.swift:5`, `Resources/Info.plist:31`
-- Manual verification required: Real-device UI/UX checks across iPhone/iPad orientations, split view, dark mode, dynamic type sizes.
+- Rationale: Static code shows semantic colors, dynamic fonts, split/tab adaptation, safe-area Auto Layout. Final visual quality and interaction polish require runtime inspection.
+- Evidence:
+  - Split view + compact tab fallback: `App/MainSplitViewController.swift:5-32`
+  - Dynamic Type + semantic colors in shared components: `App/Views/Shared/Theme.swift:3-6`, `App/Views/Shared/FormViewController.swift:20-49`
+  - Safe-area constraints in auth/bootstrap forms: `App/LoginViewController.swift:65-69`, `App/BootstrapViewController.swift:54-58`
+- Manual verification note: Verify on iPhone/iPad portrait/landscape + Split View rendering and tap/scroll behavior.
 
 ## 5. Issues / Suggestions (Severity-Rated)
 
-### Blocker
-1. Severity: **Blocker**
-- Title: Missing lot/site data isolation at model/repository layer
-- Conclusion: **Fail**
-- Evidence: `Models/Entities/Lead.swift:4`, `Models/Entities/InventoryItem.swift:4`, `Repositories/LeadRepository.swift:3`, `Persistence/CoreDataRepositories/CoreDataLeadRepository.swift:14`
-- Impact: Scope checks can pass for a site string, but records are not site-bound; cross-site data exposure/modification risk remains.
-- Minimum actionable fix: Add `siteId`/`lotId` (or equivalent) to all relevant entities and Core Data schema, propagate through repositories/services, and enforce site-scoped queries/mutations.
-
 ### High
-2. Severity: **High**
-- Title: Inconsistent object-level authorization on mutable operations
-- Conclusion: **Fail**
-- Evidence: `Services/LeadService.swift:95`, `Services/LeadService.swift:153`, `Services/LeadService.swift:227`, `Services/AppointmentService.swift:72`, `Services/AppointmentService.swift:137`
-- Impact: Users with module-level permission may update/read records outside intended ownership boundaries.
-- Minimum actionable fix: Apply consistent ownership/object checks for all lead/appointment mutate and read methods, not only selected read endpoints.
 
-3. Severity: **High**
-- Title: Appeal review actions do not enforce reviewer ownership
+1. **Least-privilege role boundaries diverge from prompt (overprivileged compliance reviewer)**
+- Severity: **High**
 - Conclusion: **Fail**
-- Evidence: `Services/AppealService.swift:111`, `Services/AppealService.swift:126`, `Services/AppealService.swift:173`
-- Impact: Any user with review permission can approve/deny appeals under review without verifying assigned reviewer identity.
-- Minimum actionable fix: Require `appeal.reviewerId == reviewer.id` for approve/deny and enforce reviewer assignment integrity.
+- Evidence:
+  - Compliance reviewer granted read on leads/inventory: `Models/Enums/PermissionAction.swift:70-74`
+  - Reviewer can therefore see leads/inventory sections by matrix checks: `App/MainSplitViewController.swift:63-71`
+- Impact: Role semantics exceed prompt scope (“exceptions and appeals”), increasing unauthorized data exposure risk.
+- Minimum actionable fix: Align `PermissionMatrix` with prompt role responsibilities and update affected UI gating/tests.
 
-4. Severity: **High**
-- Title: File access authorization module mismatch for appeal evidence
+2. **Admin site context can become empty, enabling invalid site-bound operations**
+- Severity: **High**
 - Conclusion: **Fail**
-- Evidence: `Services/FileService.swift:47`, `Services/FileService.swift:111`, `Services/FileService.swift:213`, `Services/FileService.swift:223`
-- Impact: Appeal evidence reads are authorized via leads module/scope, causing privilege model inconsistency and potential over/under-authorized access.
-- Minimum actionable fix: Authorize reads based on entity type (appeal vs lead), plus object-level checks (submitter/reviewer/admin).
+- Evidence:
+  - Site chosen from first unexpired scope, fallback `""`: `App/LoginViewController.swift:85-86`, `App/LoginViewController.swift:113-114`
+  - Default site is empty string: `App/ServiceContainer.swift:43`
+  - Lead creation persists provided site directly without non-empty validation: `Services/LeadService.swift:66-69`
+- Impact: Admin sessions without scopes can read/write records under empty site ID, corrupting isolation and weakening predictable data partitioning.
+- Minimum actionable fix: Require explicit valid site selection on login for admins (or strong default policy), validate non-empty site in service entry points.
 
-5. Severity: **High**
-- Title: File “format validation” trusts declared type; no binary signature validation
+3. **Audit-log read path lacks explicit authorization control**
+- Severity: **High**
 - Conclusion: **Fail**
-- Evidence: `Services/FileService.swift:56`, `Services/FileService.swift:57`
-- Impact: Incorrect or malicious payloads can bypass “basic format validation” requirement.
-- Minimum actionable fix: Add magic-number/header validation for JPG/PNG/MP4 before persist.
-
-6. Severity: **High**
-- Title: Background deferred matching/variance calculations are not materially implemented
-- Conclusion: **Fail**
-- Evidence: `Services/BackgroundTaskService.swift:73`, `Services/BackgroundTaskService.swift:84`
-- Impact: Required deferred processing is reduced to expiration/counting; critical background computational behavior is missing.
-- Minimum actionable fix: Implement queued/background recomputation for eligible carpool matches and variance computations (or explicit task backlog processing).
+- Evidence:
+  - `allLogs()` has no actor/role check: `Services/AuditService.swift:95-97`
+  - AuditLog screen loads all logs unconditionally: `App/Views/Admin/AuditLogViewController.swift:34-37`
+- Impact: If screen navigation is reached from any unintended path, full audit history may be exposed.
+- Minimum actionable fix: Add service-level authorization for read APIs (`allLogs`, `logsForEntity`, `logsForActor`) with explicit role checks.
 
 ### Medium
-7. Severity: **Medium**
-- Title: Closed lead archival appears limited to `closed_won`
-- Conclusion: **Partial Fail**
-- Evidence: `Persistence/CoreDataRepositories/CoreDataLeadRepository.swift:33`, `Repositories/LeadRepository.swift:8`
-- Impact: “Closed leads archived after 180 days” may not include `invalid` leads depending on intended semantics.
-- Minimum actionable fix: Clarify “closed” semantics and include all applicable terminal statuses in archival query.
 
-8. Severity: **Medium**
-- Title: Multi-passenger trip merge behavior is incomplete
+4. **Dashboard SLA alert counts are global, not site-scoped**
+- Severity: **Medium**
 - Conclusion: **Partial Fail**
-- Evidence: `Services/CarpoolService.swift:148`, `Services/CarpoolService.swift:262`, `Services/CarpoolService.swift:267`
-- Impact: Matching transitions orders out of `active` after first accept, limiting accumulation of multi-passenger merges.
-- Minimum actionable fix: Support iterative seat-fill matching and keep compatible orders eligible until capacity/time constraints are reached.
+- Evidence:
+  - Dashboard uses global SLA counts: `App/ViewModels/DashboardViewModel.swift:32`
+  - SLA service counts all leads/appointments without site filter: `Services/SLAService.swift:61-64`
+- Impact: Cross-site metadata leakage (counts) and inaccurate per-site dashboard metrics.
+- Minimum actionable fix: Add site-scoped SLA count API and use it in dashboard view model.
 
-9. Severity: **Medium**
-- Title: Encryption fallback may persist plaintext on encryption failure
-- Conclusion: **Fail**
-- Evidence: `Persistence/CoreDataRepositories/EncryptedCoreDataLeadRepository.swift:42`, `Persistence/CoreDataRepositories/EncryptedCoreDataLeadRepository.swift:43`, `Persistence/CoreDataRepositories/EncryptedCoreDataLeadRepository.swift:44`
-- Impact: Sensitive lead fields may be stored unencrypted if encryption/key retrieval fails.
-- Minimum actionable fix: Treat encryption failure as hard failure for save, return explicit error instead of plaintext fallback.
+5. **RouteSegment entity is persisted but not used in carpool matching logic**
+- Severity: **Medium**
+- Conclusion: **Partial Fail**
+- Evidence:
+  - Route segment repo injected only: `Services/CarpoolService.swift:7-31`
+  - No operational route-segment usage found in service logic/search.
+- Impact: Route-overlap scoring is simplified and does not leverage persisted route segments, reducing model fidelity and future maintainability.
+- Minimum actionable fix: Integrate `RouteSegment` data into overlap scoring or remove/defer entity until used.
+
+6. **Critical authz risks have limited targeted test coverage**
+- Severity: **Medium**
+- Conclusion: **Partial Fail**
+- Evidence:
+  - `recordCheckIn` test only uses admin actor: `Tests/ExceptionServiceTests.swift:126-133`
+  - No tests found for admin empty-site context initialization from login.
+  - No tests found for audit-log read authorization boundaries.
+- Impact: Severe access-control regressions could survive green test runs.
+- Minimum actionable fix: Add targeted tests for role-to-action matrix fit, admin site-selection correctness, and audit-log read ACL.
 
 ### Low
-10. Severity: **Low**
-- Title: Dashboard/lead list default loading behavior may hide non-new leads
+
+7. **Internal comments reference non-existent docs (`design.md`, `questions.md`)**
+- Severity: **Low**
 - Conclusion: **Partial Fail**
-- Evidence: `App/ViewModels/LeadViewModel.swift:19`
-- Impact: Operational visibility can be unintentionally narrowed in “All” mode.
-- Minimum actionable fix: For no filter, query full non-archived set instead of only `.new`.
+- Evidence:
+  - Numerous source comments reference those docs (example: `Services/LeadService.swift:3-4`, `Services/AuthService.swift:5-6`) while repo has no such files.
+- Impact: Maintenance friction; traceability from code comments to specs is weakened.
+- Minimum actionable fix: Add referenced design docs or remove stale references.
 
 ## 6. Security Review Summary
 
-- Authentication entry points: **Pass**
-  - Evidence: `App/BootstrapViewController.swift:61`, `App/LoginViewController.swift:76`, `Services/AuthService.swift:22`, `Services/AuthService.swift:61`
-  - Reasoning: Local username/password bootstrap/login and biometric enable/disable paths are implemented.
+- **Authentication entry points**: **Pass**
+  - Evidence: local credential login + lockout + password policy + bootstrap path in `Services/AuthService.swift:23-117`, `Services/AuthService.swift:159-200`; biometric wrapper in `Services/Platform/BiometricService.swift:10-45` and login use in `App/LoginViewController.swift:98-127`.
 
-- Route-level authorization: **Not Applicable**
-  - Evidence: Project is UIKit/Core Data app without HTTP routes/endpoints.
-  - Reasoning: No API/router layer exists.
+- **Route-level authorization**: **Partial Pass**
+  - Evidence: UI module gating via permission matrix in `App/MainSplitViewController.swift:63-91`; however some screens rely primarily on service failures rather than explicit deny UI.
 
-- Object-level authorization: **Fail**
-  - Evidence: `Services/LeadService.swift:227` (read has object filter), but `Services/LeadService.swift:95` and `Services/AppointmentService.swift:72` mutate without equivalent ownership checks; `Services/AppealService.swift:126`/`173` do not enforce reviewer ownership.
-  - Reasoning: Coverage is inconsistent and bypass-prone for key mutations.
+- **Object-level authorization**: **Partial Pass**
+  - Evidence: lead ownership checks in `Services/LeadService.swift:117-120`, `Services/LeadService.swift:289-299`; appointment ownership checks in `Services/AppointmentService.swift:98-103`, `Services/AppointmentService.swift:166-169`; appeal reviewer ownership in `Services/AppealService.swift:147-150`, `Services/AppealService.swift:301-309`.
+  - Gap: audit-log read object scope not constrained (`Services/AuditService.swift:95-97`).
 
-- Function-level authorization: **Partial Pass**
-  - Evidence: Broad use of `validateFullAccess`/`requireAdmin` across services (`Services/*Service.swift`), but mismatched module checks in file read paths (`Services/FileService.swift:111`, `213`, `223`).
-  - Reasoning: Foundation is present; specific function checks are inconsistent.
+- **Function-level authorization**: **Fail**
+  - Evidence: matrix/actions still diverge from prompt least-privilege semantics in `Models/Enums/PermissionAction.swift:42-81`; audit-log read functions lack actor/role enforcement (`Services/AuditService.swift:95-97`).
 
-- Tenant/user data isolation: **Fail**
-  - Evidence: No `site` field in core entities (`Models/Entities/Lead.swift:4`, `Models/Entities/PoolOrder.swift:4`), repository interfaces/query methods are not site-scoped (`Repositories/LeadRepository.swift:3`, `Repositories/AppointmentRepository.swift:3`).
-  - Reasoning: Site scope is validated at permission level but not enforced at data partition/query level.
+- **Tenant/user data isolation**: **Partial Pass**
+  - Evidence: many services filter by `site` and entity-site equality (example `Services/LeadService.swift:115`, `Services/AppointmentService.swift:96`, `Services/InventoryService.swift:389`, `Services/FileService.swift:242`).
+  - Gap: dashboard SLA counts are global (`App/ViewModels/DashboardViewModel.swift:32`, `Services/SLAService.swift:61-64`); admin site may resolve to empty string (`App/LoginViewController.swift:85-86`).
 
-- Admin/internal/debug protection: **Pass** (within app-layer boundary)
-  - Evidence: Admin checks in `Services/UserManagementService.swift:43`, `Services/InventoryService.swift:271`, `Services/FileService.swift:134`.
-  - Reasoning: Sensitive admin actions are role-gated in service layer.
+- **Admin/internal/debug protection**: **Partial Pass**
+  - Evidence: admin checks in user/scope management (`Services/UserManagementService.swift:46-48`, `Services/UserManagementService.swift:154-172`) and file pinning (`Services/FileService.swift:150-152`).
+  - Gap: debug seeder enabled by launch arg without build-gating (`App/AppDelegate.swift:22-29`); audit read API lacks role checks (`Services/AuditService.swift:95-97`).
 
 ## 7. Tests and Logging Review
 
-- Unit tests: **Pass (existence) / Partial Pass (risk coverage quality)**
-  - Evidence: `Tests/TestRunner.swift:8`, `Tests/*Tests.swift`
-  - Reasoning: Broad suite exists, but high-risk gaps (site isolation/object-level auth edge cases) are not sufficiently covered.
+- **Unit tests**: **Pass**
+  - Evidence: broad suite across services/viewmodels and domain behavior (`Tests/TestRunner.swift:8-59`, multiple `*Tests.swift` files).
 
-- API/integration tests: **Not Applicable / Partial Pass for persistence integration**
-  - Evidence: `Tests/CoreDataIntegrationTests.swift:4`
-  - Reasoning: No HTTP/API surface. Core Data integration tests exist and cover many entity flows.
+- **API/integration tests**: **Partial Pass**
+  - Evidence: Core Data integration tests exist (`Tests/CoreDataIntegrationTests.swift`), but this is app-internal integration, not network API.
+  - Note: External API/HTTP integration is **Not Applicable** for this offline local app architecture.
 
-- Logging categories/observability: **Pass**
-  - Evidence: `Services/Contracts/ServiceLogger.swift:8`, `Services/AuditService.swift:10`, `Services/BackgroundTaskService.swift:17`
-  - Reasoning: Structured categories and audit logs are present.
+- **Logging categories/observability**: **Pass**
+  - Evidence: centralized logger categories and persistence error helper in `Services/Contracts/ServiceLogger.swift:41-54`; background task logging in `Services/BackgroundTaskService.swift:20`, `Services/BackgroundTaskService.swift:53-105`.
 
-- Sensitive-data leakage risk in logs/responses: **Partial Pass**
-  - Evidence: `Services/Contracts/ServiceLogger.swift:6`, `Services/SLAService.swift:77`, `Services/Platform/NotificationService.swift:22`
-  - Reasoning: Logging guidance avoids secrets, but notification bodies include customer names and appointment timestamps; acceptable in-app context but still PII exposure risk on lock screen unless notification privacy policy is configured.
+- **Sensitive-data leakage risk in logs/responses**: **Partial Pass**
+  - Evidence: explicit no-sensitive-data logging policy comment `Services/Contracts/ServiceLogger.swift:40`; however generic `localizedDescription` is logged in multiple persistence error paths (e.g., `Services/Contracts/ServiceLogger.swift:53`) and audit UI exposes broad event metadata.
+  - Assessment: **Suspected Risk**, manual review recommended for error payload content under failure conditions.
 
 ## 8. Test Coverage Assessment (Static Audit)
 
 ### 8.1 Test Overview
-- Unit tests exist: **Yes** (`Tests/*Tests.swift`, orchestrated by `Tests/TestRunner.swift:4`)
-- Integration tests exist: **Yes** (Core Data integration in `Tests/CoreDataIntegrationTests.swift:4`)
-- Framework style: custom lightweight harness (not XCTest), using `TestHelpers` assertions (`Tests/TestHelpers.swift:89`)
-- Test entry points: `Tests/main.swift:1`, `run_tests.sh:1`, `scripts/run_tests.sh:68`
-- Documentation for test commands: **Yes** (`README.md:27`)
+- Unit tests exist: yes (`Tests/*ServiceTests.swift`, `Tests/*ViewModelTests.swift`).
+- Integration tests exist: yes (`Tests/CoreDataIntegrationTests.swift`).
+- Framework style: custom Swift test harness (`TestRunner.runAll()`) rather than XCTest (`Tests/TestRunner.swift:3-63`, `Tests/main.swift:1-3`).
+- Test entry points: `scripts/run_tests.sh`, `run_tests.sh`, and `Tests/main.swift`.
+- Test commands documented: yes (`README.md:35-43`).
 
 ### 8.2 Coverage Mapping Table
 
 | Requirement / Risk Point | Mapped Test Case(s) | Key Assertion / Fixture / Mock | Coverage Assessment | Gap | Minimum Test Addition |
 |---|---|---|---|---|---|
-| Local auth bootstrap/login/lockout | `Tests/AuthServiceTests.swift:22`, `Tests/AuthServiceTests.swift:27` | Lockout after 5 failures and expiry (`Tests/AuthServiceTests.swift:93`, `122`) | sufficient | None major | Add malformed username edge tests |
-| Session 5-minute re-auth behavior | `Tests/SessionServiceTests.swift:24` | Expiry after >5 min (`Tests/SessionServiceTests.swift:33`) | basically covered | No explicit background timestamp semantics validation | Add explicit app background/foreground interaction tests around boundary times |
-| Role/scope permission matrix | `Tests/PermissionServiceTests.swift:24`, `109` | Scope default deny/admin bypass (`Tests/PermissionServiceTests.swift:123`, `131`) | sufficient | No tests for module mismatch in FileService | Add FileService permission tests by entity type/module |
-| Lead workflow transitions | `Tests/LeadServiceTests.swift:35` | Transition assertions (`Tests/LeadServiceTests.swift:83`, `95`, `106`) | sufficient | No object-level mutation authorization tests | Add tests for updating/assigning leads not owned by caller |
-| Phone masking requirement | `Tests/LeadServiceTests.swift:187` | Mask output checks (`Tests/LeadServiceTests.swift:188`) | sufficient | None | Add list-view wiring assertion in UI tests (manual) |
-| Inventory variance threshold and admin approval | `Tests/InventoryServiceTests.swift:41`, `44`, `227` | Threshold/approval and execute adjustment asserts (`Tests/InventoryServiceTests.swift:163`, `201`, `243`) | sufficient | No multi-site isolation tests | Add same-user multi-site data separation tests |
-| Carpool radius/time/detour matching | `Tests/CarpoolServiceTests.swift:29`, `31`, `35` | Match accept and threshold checks (`Tests/CarpoolServiceTests.swift:168`, `223`) | basically covered | No test for multi-passenger merge beyond first match | Add tests for >2 participant matching with seat availability |
-| Exception/appeal lifecycle write-back | `Tests/AppealServiceTests.swift:34`, `35`, `88` | Exception status updated on approve/deny (`Tests/AppealServiceTests.swift:103`, `122`) | sufficient | No reviewer-ownership enforcement tests | Add negative tests for reviewer mismatch on approve/deny |
-| Evidence upload limits and lifecycle purge | `Tests/FileServiceTests.swift:27`, `28`, `120` | Size and purge behavior (`Tests/FileServiceTests.swift:69`, `161`) | insufficient | No binary signature validation tests; no auth matrix tests for read paths | Add magic-number validation tests and appeal-vs-lead permission tests |
-| Cross-site data isolation | None found | N/A | missing | High-risk path untested | Add end-to-end tests proving records are query-filtered by site |
+| Local auth, lockout, password policy | `Tests/AuthServiceTests.swift:22-40` | Lockout at 5 failures, password-policy assertions (`Tests/AuthServiceTests.swift:93-159`) | sufficient | None major statically | Add boundary tests around username normalization/case sensitivity if required |
+| 5-minute re-auth/session timeout | `Tests/SessionServiceTests.swift:24-36`, `Tests/NegativeUITests.swift:165-255` | Session invalid after 6 minutes and VM error states | basically covered | Foreground/background transition path in AppDelegate not directly tested | Add app-lifecycle unit tests for `onAppBackground`/`onAppForeground` presentation behavior |
+| Lead lifecycle + permissions + object ownership | `Tests/LeadServiceTests.swift:31-206` | Transition/state and permission failures (`STATE_INVALID`, `PERM_DENIED`) | sufficient | No test for admin empty-site context from login | Add tests for non-empty site enforcement and admin site selection policy |
+| Appointment lifecycle + object-level access | `Tests/AppointmentServiceTests.swift:56-340` | Owner/non-owner and cross-site denial assertions | sufficient | Limited tests for orphan lead edge case | Add test where appointment lead is missing to verify strict denial |
+| Inventory variance threshold + admin approval behavior | `Tests/InventoryServiceTests.swift:41-267` | Threshold/approval/execute assertions | basically covered | No explicit test that below-threshold variances auto-generate adjustment path (if required by spec) | Add test encoding expected behavior for below-threshold order generation |
+| Carpool matching thresholds/time overlap/cross-site | `Tests/CarpoolServiceTests.swift` | Time window, detour, seat lock, isolation cases (per grep hits) | basically covered | No route-segment-driven overlap tests | Add tests that exercise `RouteSegment` influence on match score |
+| Exception detection + appeal loop | `Tests/ExceptionServiceTests.swift:22-134`, `Tests/AppealServiceTests.swift:29-250` | Detection and reviewer workflow assertions | insufficient | Role/scope permutation coverage is limited, with check-in write path tested primarily via admin actor (`Tests/ExceptionServiceTests.swift:126-133`) | Add role-scope tests across sales/inventory/reviewer/admin for check-in recording and exception review boundaries |
+| Evidence media validation/lifecycle | `Tests/FileServiceTests.swift:21-257` | Magic-byte validation, size limits, purge denied-appeal media | sufficient | No test for lead-entity evidence object-level ownership | Add tests for lead evidence authorization ownership rules |
+| Cross-site dashboard SLA metadata isolation | none identified | `DashboardViewModel` uses global `violationCounts()` (`App/ViewModels/DashboardViewModel.swift:32`) | missing | Cross-site leakage risk untested | Add test asserting per-site SLA counts for scoped users |
+| Audit-log access control | none identified | `allLogs()` has no ACL (`Services/AuditService.swift:95-97`) | missing | Unauthorized read risk untested | Add tests requiring admin/reviewer actor for read/list operations |
 
 ### 8.3 Security Coverage Audit
-- Authentication: **Covered well** by `AuthServiceTests` (`Tests/AuthServiceTests.swift:22`)
-- Route authorization: **Not Applicable** (no HTTP route layer)
-- Object-level authorization: **Insufficient** (no targeted tests for ownership restrictions in lead/appointment mutations)
-- Tenant/data isolation: **Missing** (no tests asserting site-bound data segregation)
-- Admin/internal protection: **Basically covered** (e.g., admin-only variance/file pin/user management tests), but reviewer ownership edge cases are missing.
+- **Authentication**: **Covered meaningfully** (lockout/password/biometric toggles in auth tests).
+- **Route authorization**: **Partially covered** (service-level permission failures tested; UI-gating and screen-level ACL less directly tested).
+- **Object-level authorization**: **Partially covered** (lead/appointment/appeal ownership tested, but audit/file lead-object cases not comprehensively covered).
+- **Tenant/data isolation**: **Partially covered** (many cross-site tests exist, but global SLA count path not covered).
+- **Admin/internal protection**: **Insufficient** (no targeted tests for audit-log read ACL or debug seeder guardrails).
 
 ### 8.4 Final Coverage Judgment
-- **Partial Pass**
-- Covered major risks:
-  - Core auth, permission matrix, lead/inventory/carpool/appeal happy paths, and persistence flows.
-- Uncovered risks that could allow severe defects while tests still pass:
-  - Site/lot isolation and cross-site access leakage
-  - Object-level authorization for key mutating operations
-  - Reviewer-ownership enforcement in appeal decisions
-  - Real format validation robustness for evidence files
+**Partial Pass**
+
+- Covered major risks: auth lockout/policy, core domain workflows (lead/appointment/inventory/carpool/appeals), many cross-site and transition paths.
+- Uncovered/insufficient risks: permission-matrix role-fit, audit-log read authorization, admin empty-site context handling, and site-scoped SLA dashboard metrics.
+- Because of these gaps, tests could pass while severe authorization and isolation defects remain.
 
 ## 9. Final Notes
-- This audit is static-only and evidence-based; runtime claims were not inferred.
-- The project has strong breadth and structure, but acceptance should be gated on resolving the Blocker/High findings above.
+- The delivery is substantial and largely aligned to the offline dealership domain, but authorization semantics and site-context handling include material defects that should be addressed before acceptance.
+- Runtime claims on performance/battery/visual polish remain **Manual Verification Required** under the static-only boundary.

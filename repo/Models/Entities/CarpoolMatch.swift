@@ -1,6 +1,6 @@
 import Foundation
 
-/// Persists match results between pool orders (design.md 4.5: "persist matches")
+/// Persists match results between pool orders
 struct CarpoolMatch: Equatable {
     let id: UUID
     var requestOrderId: UUID

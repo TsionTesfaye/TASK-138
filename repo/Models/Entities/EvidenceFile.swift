@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.17
 struct EvidenceFile: Equatable {
     let id: UUID
     var siteId: String

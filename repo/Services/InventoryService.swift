@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 4.6, questions.md Q18-Q21
 /// Manages inventory counts, variance detection, and adjustment orders.
 /// Uses CountEntry (NOT CountBatch directly) for count data.
 final class InventoryService {
@@ -163,7 +162,7 @@ final class InventoryService {
         }
     }
 
-    // MARK: - Scanner Input (questions.md Q21)
+    // MARK: - Scanner Input
 
     /// Accept plain text identifier and look up inventory item.
     /// Invalid scans rejected.
@@ -186,7 +185,7 @@ final class InventoryService {
         return .success(item)
     }
 
-    // MARK: - Variance Computation (questions.md Q19, Q20)
+    // MARK: - Variance Computation
 
     /// Compute variances for all entries in a batch.
     /// Detects: surplus, shortage, location mismatch, custodian mismatch.
@@ -199,11 +198,14 @@ final class InventoryService {
             return .failure(err)
         }
 
+        guard let batch = countBatchRepo.findById(batchId) else { return .failure(.entityNotFound) }
+        guard batch.siteId == site else { return .failure(.permissionDenied) }
+
         let entries = countEntryRepo.findByBatchId(batchId)
         var variances: [Variance] = []
 
         for entry in entries {
-            guard let item = inventoryItemRepo.findById(entry.itemId) else { continue }
+            guard entry.siteId == site, let item = inventoryItemRepo.findById(entry.itemId), item.siteId == site else { continue }
 
             let diff = entry.countedQty - item.expectedQty
 
@@ -285,14 +287,13 @@ final class InventoryService {
         }
         guard variance.siteId == site else { return .failure(.permissionDenied) }
 
-        guard variance.requiresApproval else {
-            return .failure(ServiceError(code: "INV_NO_APPROVAL", message: "Variance does not require approval"))
+        if variance.requiresApproval {
+            variance.approved = true
+            do { try varianceRepo.save(variance) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_variance", error: error) }
         }
+        // Variances below threshold skip manual approval and go straight to an auto-approved order.
 
-        variance.approved = true
-        do { try varianceRepo.save(variance) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_variance", error: error) }
-
-        // Create adjustment order
+        let auditAction = variance.requiresApproval ? "variance_approved" : "variance_auto_adjusted"
         let order = AdjustmentOrder(
             id: UUID(),
             siteId: site,
@@ -305,7 +306,7 @@ final class InventoryService {
         do {
             try adjustmentOrderRepo.save(order)
             try operationLogRepo.save(operationId)
-            auditService.log(actorId: user.id, action: "variance_approved", entityId: varianceId)
+            auditService.log(actorId: user.id, action: auditAction, entityId: varianceId)
             auditService.log(actorId: user.id, action: "adjustment_order_created", entityId: order.id)
             return .success(order)
         } catch {
@@ -316,7 +317,7 @@ final class InventoryService {
     // MARK: - Execute Adjustment Order
 
     /// Executing an approved adjustment updates InventoryItem.expectedQty.
-    /// design.md 3.14: when executed → update InventoryItem.expectedQty
+    /// when executed → update InventoryItem.expectedQty
     func executeAdjustmentOrder(
         by user: User,
         site: String,

@@ -234,7 +234,7 @@ final class CoreDataIntegrationTests {
     func testNotePersistence() {
         let ctx = makeContext()
         let repo = CoreDataNoteRepository(context: ctx)
-        let n = Note(id: UUID(), entityId: UUID(), entityType: "Lead", content: "Follow up call", createdAt: Date(), createdBy: UUID())
+        let n = Note(id: UUID(), siteId: "lot-a", entityId: UUID(), entityType: "Lead", content: "Follow up call", createdAt: Date(), createdBy: UUID())
         try! repo.save(n)
         let f = repo.findById(n.id)!
         TestHelpers.assert(f.content == "Follow up call")
@@ -245,7 +245,7 @@ final class CoreDataIntegrationTests {
     func testReminderPersistence() {
         let ctx = makeContext()
         let repo = CoreDataReminderRepository(context: ctx)
-        let r = Reminder(id: UUID(), entityId: UUID(), entityType: "Lead", createdBy: UUID(), dueAt: Date(), status: .pending)
+        let r = Reminder(id: UUID(), siteId: "lot-a", entityId: UUID(), entityType: "Lead", createdBy: UUID(), dueAt: Date(), status: .pending)
         try! repo.save(r)
         let f = repo.findById(r.id)!
         TestHelpers.assert(f.status == .pending)

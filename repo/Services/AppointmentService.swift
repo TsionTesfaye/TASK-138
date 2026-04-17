@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 4.3, questions.md Q10
 /// Manages appointments with state machine and SLA alerts.
 final class AppointmentService {
 

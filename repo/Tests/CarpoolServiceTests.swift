@@ -7,14 +7,13 @@ final class CarpoolServiceTests {
 
     private func makeService() -> (CarpoolService, InMemoryPoolOrderRepository, InMemoryCarpoolMatchRepository) {
         let poolRepo = InMemoryPoolOrderRepository()
-        let routeRepo = InMemoryRouteSegmentRepository()
         let matchRepo = InMemoryCarpoolMatchRepository()
         let permService = PermissionService(permissionScopeRepo: InMemoryPermissionScopeRepository())
         let auditService = AuditService(auditLogRepo: InMemoryAuditLogRepository())
         let opLogRepo = InMemoryOperationLogRepository()
 
         let service = CarpoolService(
-            poolOrderRepo: poolRepo, routeSegmentRepo: routeRepo,
+            poolOrderRepo: poolRepo,
             carpoolMatchRepo: matchRepo, permissionService: permService,
             auditService: auditService, operationLogRepo: opLogRepo
         )
@@ -180,16 +179,24 @@ final class CarpoolServiceTests {
         let (service, poolRepo, matchRepo) = makeService()
         let admin = TestHelpers.makeAdmin()
 
-        let order = PoolOrder(
+        let requestOrder = PoolOrder(
+            id: UUID(), siteId: testSite, originLat: 37.77, originLng: -122.41,
+            destinationLat: 37.80, destinationLng: -122.27,
+            startTime: Date(), endTime: Date().addingTimeInterval(3600),
+            seatsAvailable: 1, vehicleType: "Car", createdBy: admin.id, status: .active
+        )
+        try! poolRepo.save(requestOrder)
+
+        let offerOrder = PoolOrder(
             id: UUID(), siteId: testSite, originLat: 37.77, originLng: -122.41,
             destinationLat: 37.80, destinationLng: -122.27,
             startTime: Date(), endTime: Date().addingTimeInterval(3600),
             seatsAvailable: 0, vehicleType: "Van", createdBy: admin.id, status: .active
         )
-        try! poolRepo.save(order)
+        try! poolRepo.save(offerOrder)
 
         let match = CarpoolMatch(
-            id: UUID(), requestOrderId: UUID(), offerOrderId: order.id,
+            id: UUID(), requestOrderId: requestOrder.id, offerOrderId: offerOrder.id,
             matchScore: 0.8, detourMiles: 0.5, timeOverlapMinutes: 30,
             accepted: false, createdAt: Date()
         )

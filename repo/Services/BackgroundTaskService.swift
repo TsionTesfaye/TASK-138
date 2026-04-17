@@ -4,7 +4,6 @@ import os.log
 #endif
 // Logger type is provided by os.log on Apple platforms, and by the shim in ServiceLogger.swift on Linux.
 
-/// design.md 4.12, 6, 6.1
 /// Coordinates background tasks: SLA checks, media cleanup, carpool recalc, variance processing, exception detection.
 /// Retry: up to 3 times, exponential backoff. Failure logged to AuditService.
 final class BackgroundTaskService {
@@ -100,7 +99,7 @@ final class BackgroundTaskService {
     func runExceptionDetection(now: Date = Date()) -> BackgroundTaskResult {
         return executeWithRetry(taskName: "exception_detection") {
             let results = self.exceptionService.runDetectionCycle(now: now)
-            let msg = "Buddy punching: \(results.buddyPunching), Misidentification: \(results.misidentification)"
+            let msg = "Buddy punching: \(results.buddyPunching), Misidentification: \(results.misidentification), Missed check-ins: \(results.missedCheckIn)"
             BackgroundTaskService.logger.info("\(msg)")
             return .success(msg)
         }

@@ -21,7 +21,7 @@ Fully offline **iOS** application for independent auto dealerships. Manages sale
 2. In Xcode, select the target **DealerOps** (top-left scheme selector).
 3. Choose a simulator — e.g. **iPhone 15 (iOS 17.x)** — from the device picker.
 4. Press **⌘R** (or **Product → Run**).
-5. The app launches to the **Bootstrap / Login screen** — a PIN entry view if bootstrap is complete, or the first-run setup wizard otherwise.
+5. The app launches to the **Login screen** (username + password) if bootstrap has been completed, or the **Bootstrap wizard** (first-run admin account creation) if no users exist yet.
 
 To run on a physical device, connect your iPhone, select it in the device picker, and ensure a valid development team is set under **Signing & Capabilities**.
 
@@ -32,21 +32,15 @@ ruby scripts/generate_xcodeproj.rb
 open DealerOps.xcodeproj
 ```
 
-### Run Tests (Terminal / CI)
+### Run Tests (macOS only)
 
 ```bash
-./run_tests.sh
+bash scripts/run_tests.sh
 ```
 
-Requires `swiftc` on the host. If `swiftc` is absent, the script automatically delegates to Docker (see below).
+Requires macOS with Xcode Command Line Tools (`swiftc` on PATH). The full suite — including CoreData integration and ViewModel tests — runs only on macOS. On other platforms the script prints a friendly message explaining why and exits cleanly without failure.
 
-### Run Tests (Docker — Linux CI)
-
-```bash
-docker compose up --build
-```
-
-Uses the `swift:5.9` image. CoreData and Apple-only frameworks are excluded; all platform-agnostic logic and service tests run.
+There is no Docker/Linux test fallback; all service and persistence tests depend on Apple frameworks (CoreData, os.log) that are not available on Linux.
 
 ### Static Lint
 

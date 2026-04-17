@@ -16,6 +16,7 @@ final class CheckInViewController: FormViewController, CLLocationManagerDelegate
         latField = UITextField()
         lngField = UITextField()
         super.init(container: container)
+        site = container.currentSite
     }
 
     required init?(coder: NSCoder) { return nil }

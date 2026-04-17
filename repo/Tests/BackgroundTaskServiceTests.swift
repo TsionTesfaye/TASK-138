@@ -17,9 +17,8 @@ final class BackgroundTaskServiceTests {
         let leadService = LeadService(leadRepo: leadRepo, permissionService: permService, slaService: slaService, auditService: auditService, operationLogRepo: opLogRepo, reminderRepo: reminderRepo)
 
         let poolOrderRepo = InMemoryPoolOrderRepository()
-        let routeSegmentRepo = InMemoryRouteSegmentRepository()
         let matchRepo = InMemoryCarpoolMatchRepository()
-        let carpoolService = CarpoolService(poolOrderRepo: poolOrderRepo, routeSegmentRepo: routeSegmentRepo, carpoolMatchRepo: matchRepo, permissionService: permService, auditService: auditService, operationLogRepo: opLogRepo)
+        let carpoolService = CarpoolService(poolOrderRepo: poolOrderRepo, carpoolMatchRepo: matchRepo, permissionService: permService, auditService: auditService, operationLogRepo: opLogRepo)
 
         let itemRepo = InMemoryInventoryItemRepository()
         let taskRepo = InMemoryCountTaskRepository()

@@ -8,7 +8,8 @@ final class NoteServiceTests {
         NoteService,
         InMemoryNoteRepository,
         InMemoryTagRepository,
-        InMemoryPermissionScopeRepository
+        InMemoryPermissionScopeRepository,
+        InMemoryLeadRepository
     ) {
         let noteRepo = InMemoryNoteRepository()
         let tagRepo = InMemoryTagRepository()
@@ -24,12 +25,13 @@ final class NoteServiceTests {
         let service = NoteService(
             noteRepo: noteRepo,
             tagRepo: tagRepo,
+            leadRepo: leadRepo,
             permissionService: permService,
             auditService: auditService,
             slaService: slaService,
             operationLogRepo: opLogRepo
         )
-        return (service, noteRepo, tagRepo, permScopeRepo)
+        return (service, noteRepo, tagRepo, permScopeRepo, leadRepo)
     }
 
     private func grantScope(_ user: User, scopeRepo: InMemoryPermissionScopeRepository) {
@@ -38,6 +40,20 @@ final class NoteServiceTests {
             validFrom: Date().addingTimeInterval(-3600), validTo: Date().addingTimeInterval(3600)
         )
         try! scopeRepo.save(scope)
+    }
+
+    @discardableResult
+    private func makeLead(id: UUID = UUID(), in leadRepo: InMemoryLeadRepository) -> Lead {
+        let lead = Lead(
+            id: id, siteId: testSite, leadType: .generalContact, status: .new,
+            customerName: "Test Customer", phone: "5550000000",
+            vehicleInterest: "SUV", preferredContactWindow: "morning",
+            consentNotes: "", assignedTo: nil,
+            createdAt: Date(), updatedAt: Date(),
+            slaDeadline: nil, lastQualifyingAction: nil, archivedAt: nil
+        )
+        try! leadRepo.save(lead)
+        return lead
     }
 
     func runAll() {
@@ -60,10 +76,11 @@ final class NoteServiceTests {
     }
 
     func testAddNote() {
-        let (service, noteRepo, _, scopeRepo) = makeServices()
+        let (service, noteRepo, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
         let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
 
         let result = service.addNote(
             by: user, site: testSite, entityId: entityId, entityType: "Lead",
@@ -79,7 +96,7 @@ final class NoteServiceTests {
     }
 
     func testAddNoteEmptyContentRejected() {
-        let (service, _, _, scopeRepo) = makeServices()
+        let (service, _, _, scopeRepo, _) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
 
@@ -92,7 +109,7 @@ final class NoteServiceTests {
     }
 
     func testAddNoteWhitespaceOnlyRejected() {
-        let (service, _, _, scopeRepo) = makeServices()
+        let (service, _, _, scopeRepo, _) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
 
@@ -105,7 +122,7 @@ final class NoteServiceTests {
     }
 
     func testAddNotePermissionDenied() {
-        let (service, _, _, _) = makeServices()
+        let (service, _, _, _, _) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         // No scope granted
 
@@ -118,19 +135,21 @@ final class NoteServiceTests {
     }
 
     func testAddNoteIdempotency() {
-        let (service, _, _, scopeRepo) = makeServices()
+        let (service, _, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
         let opId = UUID()
+        let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
 
         let r1 = service.addNote(
-            by: user, site: testSite, entityId: UUID(), entityType: "Lead",
+            by: user, site: testSite, entityId: entityId, entityType: "Lead",
             content: "First note", operationId: opId
         )
         TestHelpers.assertSuccess(r1)
 
         let r2 = service.addNote(
-            by: user, site: testSite, entityId: UUID(), entityType: "Lead",
+            by: user, site: testSite, entityId: entityId, entityType: "Lead",
             content: "Duplicate note", operationId: opId
         )
         TestHelpers.assertFailure(r2, code: "OP_DUPLICATE")
@@ -138,10 +157,11 @@ final class NoteServiceTests {
     }
 
     func testGetNotesForEntity() {
-        let (service, _, _, scopeRepo) = makeServices()
+        let (service, _, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
         let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
 
         TestHelpers.assertSuccess(service.addNote(by: user, site: testSite, entityId: entityId, entityType: "Lead", content: "Note 1", operationId: UUID()))
         TestHelpers.assertSuccess(service.addNote(by: user, site: testSite, entityId: entityId, entityType: "Lead", content: "Note 2", operationId: UUID()))
@@ -153,7 +173,7 @@ final class NoteServiceTests {
     }
 
     func testGetNotesForEntityPermissionDenied() {
-        let (service, _, _, _) = makeServices()
+        let (service, _, _, _, _) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
 
         let result = service.getNotesForEntity(by: user, site: testSite, entityId: UUID(), entityType: "Lead")
@@ -162,7 +182,7 @@ final class NoteServiceTests {
     }
 
     func testGetOrCreateTagNew() {
-        let (service, _, tagRepo, _) = makeServices()
+        let (service, _, tagRepo, _, _) = makeServices()
 
         let result = service.getOrCreateTag(name: "urgent")
         let tag = TestHelpers.assertSuccess(result)!
@@ -172,7 +192,7 @@ final class NoteServiceTests {
     }
 
     func testGetOrCreateTagExistingReturned() {
-        let (service, _, tagRepo, _) = makeServices()
+        let (service, _, tagRepo, _, _) = makeServices()
 
         let t1 = TestHelpers.assertSuccess(service.getOrCreateTag(name: "hot-lead"))!
         let t2 = TestHelpers.assertSuccess(service.getOrCreateTag(name: "hot-lead"))!
@@ -182,7 +202,7 @@ final class NoteServiceTests {
     }
 
     func testGetOrCreateTagNormalized() {
-        let (service, _, _, _) = makeServices()
+        let (service, _, _, _, _) = makeServices()
 
         let t1 = TestHelpers.assertSuccess(service.getOrCreateTag(name: "  HOT  "))!
         let t2 = TestHelpers.assertSuccess(service.getOrCreateTag(name: "hot"))!
@@ -191,7 +211,7 @@ final class NoteServiceTests {
     }
 
     func testGetOrCreateTagEmptyRejected() {
-        let (service, _, _, _) = makeServices()
+        let (service, _, _, _, _) = makeServices()
 
         let result = service.getOrCreateTag(name: "   ")
         TestHelpers.assertFailure(result, code: "VAL_FAILED")
@@ -199,11 +219,12 @@ final class NoteServiceTests {
     }
 
     func testAssignTag() {
-        let (service, _, tagRepo, scopeRepo) = makeServices()
+        let (service, _, tagRepo, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
         let tag = TestHelpers.assertSuccess(service.getOrCreateTag(name: "follow-up"))!
         let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
 
         let result = service.assignTag(by: user, site: testSite, tagId: tag.id, entityId: entityId, entityType: "Lead")
         TestHelpers.assertSuccess(result)
@@ -212,7 +233,7 @@ final class NoteServiceTests {
     }
 
     func testAssignTagPermissionDenied() {
-        let (service, _, _, _) = makeServices()
+        let (service, _, _, _, _) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
 
         let result = service.assignTag(by: user, site: testSite, tagId: UUID(), entityId: UUID(), entityType: "Lead")
@@ -221,11 +242,12 @@ final class NoteServiceTests {
     }
 
     func testRemoveTag() {
-        let (service, _, tagRepo, scopeRepo) = makeServices()
+        let (service, _, tagRepo, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
         let tag = TestHelpers.assertSuccess(service.getOrCreateTag(name: "stale"))!
         let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
 
         TestHelpers.assertSuccess(service.assignTag(by: user, site: testSite, tagId: tag.id, entityId: entityId, entityType: "Lead"))
         TestHelpers.assert(tagRepo.findAssignments(entityId: entityId, entityType: "Lead").count == 1)
@@ -237,10 +259,11 @@ final class NoteServiceTests {
     }
 
     func testGetTagsForEntity() {
-        let (service, _, _, scopeRepo) = makeServices()
+        let (service, _, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
         let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
         let t1 = TestHelpers.assertSuccess(service.getOrCreateTag(name: "vip"))!
         let t2 = TestHelpers.assertSuccess(service.getOrCreateTag(name: "trade-in"))!
         TestHelpers.assertSuccess(service.assignTag(by: user, site: testSite, tagId: t1.id, entityId: entityId, entityType: "Lead"))

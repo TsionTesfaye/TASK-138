@@ -15,6 +15,11 @@ final class DashboardViewModel: BaseViewModel {
     private(set) var data: DashboardData?
     var site: String = ""
 
+    override init(container: ServiceContainer) {
+        super.init(container: container)
+        site = container.currentSite
+    }
+
     func load() {
         guard let user = currentUser() else { return }
         setState(.loading)
@@ -24,7 +29,7 @@ final class DashboardViewModel: BaseViewModel {
             newLeads = leads.count
         }
 
-        let violations = container.slaService.checkViolations()
+        let violations = container.slaService.violationCounts(site: site)
 
         var pendingAppeals = 0
         if case .success(let submitted) = container.appealService.findByStatus(by: user, site: site, .submitted) {
@@ -48,7 +53,7 @@ final class DashboardViewModel: BaseViewModel {
             username: user.username,
             role: user.role.rawValue.replacingOccurrences(of: "_", with: " ").capitalized,
             newLeadCount: newLeads,
-            slaViolationCount: violations.leadViolations.count + violations.appointmentViolations.count,
+            slaViolationCount: violations.leadViolations + violations.appointmentViolations,
             pendingAppealCount: pendingAppeals,
             pendingVarianceCount: pendingVariances,
             unconfirmedAppointmentCount: unconfirmed

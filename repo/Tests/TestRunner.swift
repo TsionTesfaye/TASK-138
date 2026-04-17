@@ -47,6 +47,8 @@ struct TestRunner {
         print()
         DebugSeederTests().runAll()
         print()
+        ServiceContainerTests().runAll()
+        print()
         #if canImport(CoreData)
         ViewModelTests().runAll()
         print()

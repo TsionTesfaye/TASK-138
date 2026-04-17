@@ -1,12 +1,12 @@
 import Foundation
 
-/// design.md 3.5, 3.6, questions.md Q12
 /// Manages notes and tags with polymorphic associations.
 /// Note addition on a lead is an SLA qualifying action.
 final class NoteService {
 
     private let noteRepo: NoteRepository
     private let tagRepo: TagRepository
+    private let leadRepo: LeadRepository
     private let permissionService: PermissionService
     private let auditService: AuditService
     private let slaService: SLAService
@@ -15,6 +15,7 @@ final class NoteService {
     init(
         noteRepo: NoteRepository,
         tagRepo: TagRepository,
+        leadRepo: LeadRepository,
         permissionService: PermissionService,
         auditService: AuditService,
         slaService: SLAService,
@@ -22,10 +23,27 @@ final class NoteService {
     ) {
         self.noteRepo = noteRepo
         self.tagRepo = tagRepo
+        self.leadRepo = leadRepo
         self.permissionService = permissionService
         self.auditService = auditService
         self.slaService = slaService
         self.operationLogRepo = operationLogRepo
+    }
+
+    // MARK: - Entity Ownership
+
+    /// Verifies the entity exists at the site and the user has object-level access.
+    /// For Lead entities, enforces lead ownership (same rule as LeadService).
+    private func enforceEntityAccess(entityId: UUID, entityType: String, site: String, user: User) -> ServiceResult<Void> {
+        guard entityType == "Lead" else { return .success(()) }
+        guard let lead = leadRepo.findById(entityId) else { return .failure(.entityNotFound) }
+        guard lead.siteId == site else { return .failure(.permissionDenied) }
+        switch user.role {
+        case .administrator, .complianceReviewer: return .success(())
+        default:
+            guard lead.assignedTo == nil || lead.assignedTo == user.id else { return .failure(.permissionDenied) }
+            return .success(())
+        }
     }
 
     // MARK: - Notes
@@ -51,8 +69,13 @@ final class NoteService {
             return .failure(.validationFailed("content", "required"))
         }
 
+        if case .failure(let err) = enforceEntityAccess(entityId: entityId, entityType: entityType, site: site, user: user) {
+            return .failure(err)
+        }
+
         let note = Note(
             id: UUID(),
+            siteId: site,
             entityId: entityId,
             entityType: entityType,
             content: content,
@@ -83,7 +106,10 @@ final class NoteService {
         ) {
             return .failure(err)
         }
-        return .success(noteRepo.findByEntity(entityId: entityId, entityType: entityType))
+        if case .failure(let err) = enforceEntityAccess(entityId: entityId, entityType: entityType, site: site, user: user) {
+            return .failure(err)
+        }
+        return .success(noteRepo.findByEntity(entityId: entityId, entityType: entityType).filter { $0.siteId == site })
     }
 
     // MARK: - Tags
@@ -122,6 +148,9 @@ final class NoteService {
         ) {
             return .failure(err)
         }
+        if case .failure(let err) = enforceEntityAccess(entityId: entityId, entityType: entityType, site: site, user: user) {
+            return .failure(err)
+        }
 
         let assignment = TagAssignment(tagId: tagId, entityId: entityId, entityType: entityType)
         do {
@@ -147,6 +176,9 @@ final class NoteService {
         ) {
             return .failure(err)
         }
+        if case .failure(let err) = enforceEntityAccess(entityId: entityId, entityType: entityType, site: site, user: user) {
+            return .failure(err)
+        }
 
         do {
             try tagRepo.deleteAssignment(tagId: tagId, entityId: entityId, entityType: entityType)
@@ -162,6 +194,9 @@ final class NoteService {
             user: user, action: "read", module: .leads,
             site: site, functionKey: "leads"
         ) {
+            return .failure(err)
+        }
+        if case .failure(let err) = enforceEntityAccess(entityId: entityId, entityType: entityType, site: site, user: user) {
             return .failure(err)
         }
         return .success(tagRepo.findAssignments(entityId: entityId, entityType: entityType))

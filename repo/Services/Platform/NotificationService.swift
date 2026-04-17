@@ -6,7 +6,6 @@ import Foundation
 import UserNotifications
 
 /// Real UNUserNotificationCenter wrapper for SLA alerts and reminders.
-/// design.md 4.4, 4.16: on-device alerts for SLA violations.
 /// Fully offline — no push notifications, local only.
 final class NotificationService {
 

@@ -17,6 +17,15 @@ final class PersistenceController {
             let desc = NSPersistentStoreDescription()
             desc.type = NSInMemoryStoreType
             container.persistentStoreDescriptions = [desc]
+        } else {
+            #if canImport(UIKit)
+            // iOS Data Protection: store file readable only while device is unlocked.
+            // Satisfies explicit data-at-rest requirement.
+            if let desc = container.persistentStoreDescriptions.first {
+                desc.setOption(FileProtectionType.completeUnlessOpen as NSObject,
+                               forKey: NSPersistentStoreFileProtectionKey)
+            }
+            #endif
         }
         var loadError: Error?
         container.loadPersistentStores { _, error in
@@ -48,6 +57,7 @@ final class PersistenceController {
     static func buildModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
 
+        let roleEntity = buildRoleEntity()
         let userEntity = buildUserEntity()
         let permScopeEntity = buildPermissionScopeEntity()
         let leadEntity = buildLeadEntity()
@@ -57,7 +67,6 @@ final class PersistenceController {
         let tagAssignmentEntity = buildTagAssignmentEntity()
         let reminderEntity = buildReminderEntity()
         let poolOrderEntity = buildPoolOrderEntity()
-        let routeSegmentEntity = buildRouteSegmentEntity()
         let inventoryItemEntity = buildInventoryItemEntity()
         let countTaskEntity = buildCountTaskEntity()
         let countBatchEntity = buildCountBatchEntity()
@@ -74,9 +83,9 @@ final class PersistenceController {
         let operationLogEntity = buildOperationLogEntity()
 
         model.entities = [
-            userEntity, permScopeEntity, leadEntity, appointmentEntity,
+            roleEntity, userEntity, permScopeEntity, leadEntity, appointmentEntity,
             noteEntity, tagEntity, tagAssignmentEntity, reminderEntity,
-            poolOrderEntity, routeSegmentEntity,
+            poolOrderEntity,
             inventoryItemEntity, countTaskEntity, countBatchEntity, countEntryEntity,
             varianceEntity, adjustmentOrderEntity,
             exceptionCaseEntity, checkInEntity, appealEntity,
@@ -88,6 +97,18 @@ final class PersistenceController {
     }
 
     // MARK: - Entity Builders
+
+    private static func buildRoleEntity() -> NSEntityDescription {
+        let e = NSEntityDescription()
+        e.name = "CDRole"
+        e.managedObjectClassName = "CDRole"
+        e.properties = [
+            attr("id", .UUIDAttributeType),
+            attr("name", .stringAttributeType),
+            attr("displayName", .stringAttributeType),
+        ]
+        return e
+    }
 
     private static func attr(_ name: String, _ type: NSAttributeType, optional: Bool = false, defaultValue: Any? = nil) -> NSAttributeDescription {
         let a = NSAttributeDescription()
@@ -177,6 +198,7 @@ final class PersistenceController {
         e.managedObjectClassName = "CDNote"
         e.properties = [
             attr("id", .UUIDAttributeType),
+            attr("siteId", .stringAttributeType),
             attr("entityId", .UUIDAttributeType),
             attr("entityType", .stringAttributeType),
             attr("content", .stringAttributeType),
@@ -215,6 +237,7 @@ final class PersistenceController {
         e.managedObjectClassName = "CDReminder"
         e.properties = [
             attr("id", .UUIDAttributeType),
+            attr("siteId", .stringAttributeType),
             attr("entityId", .UUIDAttributeType),
             attr("entityType", .stringAttributeType),
             attr("createdBy", .UUIDAttributeType),
@@ -241,20 +264,6 @@ final class PersistenceController {
             attr("vehicleType", .stringAttributeType),
             attr("createdBy", .UUIDAttributeType),
             attr("status", .stringAttributeType),
-        ]
-        return e
-    }
-
-    private static func buildRouteSegmentEntity() -> NSEntityDescription {
-        let e = NSEntityDescription()
-        e.name = "CDRouteSegment"
-        e.managedObjectClassName = "CDRouteSegment"
-        e.properties = [
-            attr("id", .UUIDAttributeType),
-            attr("poolOrderId", .UUIDAttributeType),
-            attr("sequence", .integer32AttributeType),
-            attr("locationLat", .doubleAttributeType),
-            attr("locationLng", .doubleAttributeType),
         ]
         return e
     }

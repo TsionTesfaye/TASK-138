@@ -13,6 +13,10 @@ final class AuditServiceTests {
         testPurgeRespects1YearRetention()
         testQueryByEntity()
         testQueryExcludesTombstones()
+        testAllLogsRequiresPrivilegedRole()
+        testLogsForEntityRequiresPrivilegedRole()
+        testLogsForActorRequiresPrivilegedRole()
+        testComplianceReviewerCanReadLogs()
     }
 
     func testLogCreatesEntry() {
@@ -40,8 +44,8 @@ final class AuditServiceTests {
         service.log(actorId: UUID(), action: "original", entityId: entityId)
         let logEntry = repo.findAll().first { $0.action == "original" }!
 
-        let deleterId = UUID()
-        _ = service.deleteLog(logId: logEntry.id, deletedBy: deleterId)
+        let admin = TestHelpers.makeAdmin()
+        _ = service.deleteLog(by: admin, logId: logEntry.id)
 
         // Entry should still exist but be tombstoned
         let all = repo.findAll()
@@ -56,13 +60,13 @@ final class AuditServiceTests {
         let service = AuditService(auditLogRepo: repo)
         service.log(actorId: UUID(), action: "original", entityId: UUID())
         let logEntry = repo.findAll().first!
-        let deleterId = UUID()
-        _ = service.deleteLog(logId: logEntry.id, deletedBy: deleterId)
+        let admin = TestHelpers.makeAdmin()
+        _ = service.deleteLog(by: admin, logId: logEntry.id)
 
         let updated = repo.findById(logEntry.id)!
         TestHelpers.assert(updated.tombstone)
         TestHelpers.assert(updated.deletedAt != nil)
-        TestHelpers.assert(updated.deletedBy == deleterId)
+        TestHelpers.assert(updated.deletedBy == admin.id)
         print("  PASS: testTombstoneMarksFields")
     }
 
@@ -109,12 +113,13 @@ final class AuditServiceTests {
     func testQueryByEntity() {
         let repo = InMemoryAuditLogRepository()
         let service = AuditService(auditLogRepo: repo)
+        let admin = TestHelpers.makeAdmin()
         let entityId = UUID()
         service.log(actorId: UUID(), action: "action1", entityId: entityId)
         service.log(actorId: UUID(), action: "action2", entityId: entityId)
         service.log(actorId: UUID(), action: "action3", entityId: UUID()) // different entity
 
-        let logs = service.logsForEntity(entityId)
+        let logs = TestHelpers.assertSuccess(service.logsForEntity(by: admin, entityId))!
         TestHelpers.assert(logs.count == 2, "Should find 2 logs for entity")
         print("  PASS: testQueryByEntity")
     }
@@ -122,16 +127,54 @@ final class AuditServiceTests {
     func testQueryExcludesTombstones() {
         let repo = InMemoryAuditLogRepository()
         let service = AuditService(auditLogRepo: repo)
+        let admin = TestHelpers.makeAdmin()
         let entityId = UUID()
         service.log(actorId: UUID(), action: "visible", entityId: entityId)
         service.log(actorId: UUID(), action: "hidden", entityId: entityId)
 
         let hidden = repo.findAll().first { $0.action == "hidden" }!
-        _ = service.deleteLog(logId: hidden.id, deletedBy: UUID())
+        _ = service.deleteLog(by: admin, logId: hidden.id)
 
-        let logs = service.logsForEntity(entityId)
+        let logs = TestHelpers.assertSuccess(service.logsForEntity(by: admin, entityId))!
         TestHelpers.assert(logs.count == 1, "Should exclude tombstoned entries")
         TestHelpers.assert(logs[0].action == "visible")
         print("  PASS: testQueryExcludesTombstones")
+    }
+
+    func testAllLogsRequiresPrivilegedRole() {
+        let service = AuditService(auditLogRepo: InMemoryAuditLogRepository())
+        service.log(actorId: UUID(), action: "action", entityId: UUID())
+        let staff = TestHelpers.makeSalesAssociate()
+        TestHelpers.assertFailure(service.allLogs(by: staff), code: "PERM_DENIED")
+        let clerk = TestHelpers.makeInventoryClerk()
+        TestHelpers.assertFailure(service.allLogs(by: clerk), code: "PERM_DENIED")
+        print("  PASS: testAllLogsRequiresPrivilegedRole")
+    }
+
+    func testLogsForEntityRequiresPrivilegedRole() {
+        let service = AuditService(auditLogRepo: InMemoryAuditLogRepository())
+        let entityId = UUID()
+        service.log(actorId: UUID(), action: "action", entityId: entityId)
+        let staff = TestHelpers.makeSalesAssociate()
+        TestHelpers.assertFailure(service.logsForEntity(by: staff, entityId), code: "PERM_DENIED")
+        print("  PASS: testLogsForEntityRequiresPrivilegedRole")
+    }
+
+    func testLogsForActorRequiresPrivilegedRole() {
+        let service = AuditService(auditLogRepo: InMemoryAuditLogRepository())
+        let actorId = UUID()
+        service.log(actorId: actorId, action: "action", entityId: UUID())
+        let staff = TestHelpers.makeSalesAssociate()
+        TestHelpers.assertFailure(service.logsForActor(by: staff, actorId), code: "PERM_DENIED")
+        print("  PASS: testLogsForActorRequiresPrivilegedRole")
+    }
+
+    func testComplianceReviewerCanReadLogs() {
+        let service = AuditService(auditLogRepo: InMemoryAuditLogRepository())
+        service.log(actorId: UUID(), action: "action", entityId: UUID())
+        let reviewer = TestHelpers.makeComplianceReviewer()
+        let logs = TestHelpers.assertSuccess(service.allLogs(by: reviewer))!
+        TestHelpers.assert(logs.count == 1, "Compliance reviewer should read audit logs")
+        print("  PASS: testComplianceReviewerCanReadLogs")
     }
 }

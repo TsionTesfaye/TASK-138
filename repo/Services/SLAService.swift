@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 4.11, 4.16, questions.md Q10, Q11
 /// Computes SLA deadlines using business hours. Detects violations.
 /// Fires local notifications on first detection of each violation.
 final class SLAService {
@@ -55,9 +54,24 @@ final class SLAService {
 
     // MARK: - Violation Detection
 
-    /// Check for SLA violations. Called by BackgroundTaskService.
-    /// Returns IDs of leads/appointments in violation.
-    /// Fires a local notification exactly once per new violation (deduped by entity ID).
+    /// Pure metric count: how many leads/appointments in the given site are currently violating SLA.
+    /// No audit logging, no notifications. Safe to call from dashboard/UI context.
+    func violationCounts(site: String, now: Date = Date()) -> (leadViolations: Int, appointmentViolations: Int) {
+        let overdueLeads = leadRepo.findBySiteId(site).filter {
+            $0.status == .new &&
+            $0.archivedAt == nil &&
+            ($0.slaDeadline.map { $0 <= now } ?? false)
+        }
+        let thirtyMinFromNow = now.addingTimeInterval(30 * 60)
+        let unconfirmed = appointmentRepo.findBySiteId(site).filter {
+            $0.status == .scheduled &&
+            $0.startTime <= thirtyMinFromNow
+        }
+        return (overdueLeads.count, unconfirmed.count)
+    }
+
+    /// Full violation detection with audit logging and push notifications.
+    /// Called by BackgroundTaskService only — not safe for dashboard use.
     func checkViolations(now: Date = Date()) -> (leadViolations: [UUID], appointmentViolations: [UUID]) {
         var leadViolations: [UUID] = []
         var appointmentViolations: [UUID] = []

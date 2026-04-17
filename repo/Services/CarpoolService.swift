@@ -1,11 +1,9 @@
 import Foundation
 
-/// design.md 4.5, 4.13 (PoolOrder State Machine), questions.md Q14-Q17
 /// Manages pool orders, Haversine matching, seat locking.
 final class CarpoolService {
 
     private let poolOrderRepo: PoolOrderRepository
-    private let routeSegmentRepo: RouteSegmentRepository
     private let carpoolMatchRepo: CarpoolMatchRepository
     private let permissionService: PermissionService
     private let auditService: AuditService
@@ -16,14 +14,12 @@ final class CarpoolService {
 
     init(
         poolOrderRepo: PoolOrderRepository,
-        routeSegmentRepo: RouteSegmentRepository,
         carpoolMatchRepo: CarpoolMatchRepository,
         permissionService: PermissionService,
         auditService: AuditService,
         operationLogRepo: OperationLogRepository
     ) {
         self.poolOrderRepo = poolOrderRepo
-        self.routeSegmentRepo = routeSegmentRepo
         self.carpoolMatchRepo = carpoolMatchRepo
         self.permissionService = permissionService
         self.auditService = auditService
@@ -246,6 +242,14 @@ final class CarpoolService {
             return .failure(.duplicateOperation)
         }
 
+        // Requester ownership: load request order first and enforce before any mutation.
+        guard let requestOrderLoaded = poolOrderRepo.findById(match.requestOrderId, siteId: site) else {
+            return .failure(.entityNotFound)
+        }
+        guard requestOrderLoaded.createdBy == user.id || user.role == .administrator else {
+            return .failure(.permissionDenied)
+        }
+
         guard var offerOrder = poolOrderRepo.findById(match.offerOrderId, siteId: site) else {
             return .failure(.entityNotFound)
         }
@@ -266,11 +270,10 @@ final class CarpoolService {
         }
 
         // Request order transitions to matched (rider is committed)
-        if var requestOrder = poolOrderRepo.findById(match.requestOrderId, siteId: site) {
-            if requestOrder.status == .active {
-                requestOrder.status = .matched
-                do { try poolOrderRepo.save(requestOrder) } catch { ServiceLogger.persistenceError(ServiceLogger.carpool, operation: "save_pool_order", error: error) }
-            }
+        var requestOrder = requestOrderLoaded
+        if requestOrder.status == .active {
+            requestOrder.status = .matched
+            do { try poolOrderRepo.save(requestOrder) } catch { ServiceLogger.persistenceError(ServiceLogger.carpool, operation: "save_pool_order", error: error) }
         }
 
         do {

@@ -1,6 +1,29 @@
 import Foundation
 import CoreData
 
+// MARK: - Role
+
+final class CoreDataRoleRepository: RoleRepository {
+    private let context: NSManagedObjectContext
+    private let entityName = "CDRole"
+    init(context: NSManagedObjectContext) { self.context = context }
+
+    func findAll() -> [Role] {
+        CoreDataHelpers.fetch(entityName: entityName, context: context).map { Role(mo: $0) }
+    }
+    func findById(_ id: UUID) -> Role? {
+        CoreDataHelpers.findById(id, entityName: entityName, context: context).map { Role(mo: $0) }
+    }
+    func findByName(_ name: UserRole) -> Role? {
+        CoreDataHelpers.fetch(entityName: entityName,
+            predicate: NSPredicate(format: "name == %@", name.rawValue), context: context
+        ).first.map { Role(mo: $0) }
+    }
+    func save(_ role: Role) throws {
+        try CoreDataHelpers.upsert(id: role.id, entityName: entityName, context: context) { mo in role.apply(to: mo) }
+    }
+}
+
 // MARK: - CountEntry
 
 final class CoreDataCountEntryRepository: CountEntryRepository {

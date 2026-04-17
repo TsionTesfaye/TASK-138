@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.16
 struct Appeal: Equatable {
     let id: UUID
     var siteId: String

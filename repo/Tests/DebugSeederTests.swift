@@ -112,7 +112,7 @@ final class DebugSeederTests {
         // Confirm scopes are also not duplicated (by checking sales1's scope count)
         if let sales = userRepo.findByUsername("sales1") {
             let scopes = permScopeRepo.findByUserId(sales.id)
-            TestHelpers.assert(scopes.count == 2, "sales1 should have exactly 2 scopes (leads + carpool), got \(scopes.count)")
+            TestHelpers.assert(scopes.count == 3, "sales1 should have exactly 3 scopes (leads + carpool + checkin), got \(scopes.count)")
         }
         print("  PASS: testSeedingIsIdempotent")
     }
@@ -161,24 +161,27 @@ final class DebugSeederTests {
         let (seeder, _, userRepo, permScopeRepo) = makeComponents()
         seeder.seed()
 
-        // sales1 → leads + carpool
+        // sales1 → leads + carpool + checkin
         let sales = userRepo.findByUsername("sales1")!
         let salesScopes = permScopeRepo.findByUserId(sales.id)
         let salesKeys = Set(salesScopes.map { $0.functionKey })
         TestHelpers.assert(salesKeys.contains("leads"), "sales1 missing leads scope")
         TestHelpers.assert(salesKeys.contains("carpool"), "sales1 missing carpool scope")
+        TestHelpers.assert(salesKeys.contains("checkin"), "sales1 missing checkin scope")
         TestHelpers.assert(salesScopes.allSatisfy { $0.site == DebugSeeder.demoSite }, "Scopes must target demoSite")
 
-        // clerk1 → inventory
+        // clerk1 → inventory + checkin
         let clerk = userRepo.findByUsername("clerk1")!
         let clerkKeys = Set(permScopeRepo.findByUserId(clerk.id).map { $0.functionKey })
         TestHelpers.assert(clerkKeys.contains("inventory"), "clerk1 missing inventory scope")
+        TestHelpers.assert(clerkKeys.contains("checkin"), "clerk1 missing checkin scope")
 
-        // reviewer1 → compliance + leads
+        // reviewer1 → exceptions + appeals + checkin
         let reviewer = userRepo.findByUsername("reviewer1")!
         let reviewerKeys = Set(permScopeRepo.findByUserId(reviewer.id).map { $0.functionKey })
-        TestHelpers.assert(reviewerKeys.contains("compliance"), "reviewer1 missing compliance scope")
-        TestHelpers.assert(reviewerKeys.contains("leads"), "reviewer1 missing leads scope")
+        TestHelpers.assert(reviewerKeys.contains("exceptions"), "reviewer1 missing exceptions scope")
+        TestHelpers.assert(reviewerKeys.contains("appeals"), "reviewer1 missing appeals scope")
+        TestHelpers.assert(reviewerKeys.contains("checkin"), "reviewer1 missing checkin scope")
 
         print("  PASS: testNonAdminScopesSeeded")
     }

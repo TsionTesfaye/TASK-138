@@ -3,6 +3,7 @@ import Foundation
 protocol PermissionScopeRepository {
     func findByUserId(_ userId: UUID) -> [PermissionScope]
     func findByUserIdAndSiteAndFunction(userId: UUID, site: String, functionKey: String, at date: Date) -> [PermissionScope]
+    func findAll() -> [PermissionScope]
     func save(_ scope: PermissionScope) throws
     func delete(_ id: UUID) throws
 }
@@ -23,6 +24,8 @@ final class InMemoryPermissionScopeRepository: PermissionScopeRepository {
             $0.validTo >= date
         }
     }
+
+    func findAll() -> [PermissionScope] { Array(store.values) }
 
     func save(_ scope: PermissionScope) throws {
         store[scope.id] = scope

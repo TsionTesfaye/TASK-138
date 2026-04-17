@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 4.2, 4.13 (Lead State Machine), questions.md Q8, Q9, Q11
 /// Manages lead lifecycle, SLA tracking, and archiving.
 final class LeadService {
 
@@ -40,6 +39,10 @@ final class LeadService {
 
     func createLead(by user: User, site: String, input: CreateLeadInput, operationId: UUID) -> ServiceResult<Lead> {
         if operationLogRepo.exists(operationId) { return .failure(.duplicateOperation) }
+
+        guard !site.trimmingCharacters(in: .whitespaces).isEmpty else {
+            return .failure(ServiceError(code: "SITE_REQUIRED", message: "Site context is required"))
+        }
 
         if case .failure(let err) = permissionService.validateFullAccess(
             user: user, action: "create", module: .leads,
@@ -91,7 +94,7 @@ final class LeadService {
         }
     }
 
-    // MARK: - Update Status (State Machine from design.md 4.13)
+    // MARK: - Update Status (State Machine)
 
     func updateLeadStatus(
         by user: User,
@@ -203,7 +206,7 @@ final class LeadService {
 
     // MARK: - Archive Closed Leads (180-day rule)
 
-    /// design.md: closed leads archived after 180 days
+    /// closed leads archived after 180 days
     /// System-initiated batch operation.
     func archiveClosedLeads(olderThan date: Date) -> Int {
         let leads = leadRepo.findClosedLeadsOlderThan(date)

@@ -7,7 +7,6 @@ import Security
 #endif
 
 /// AES-256-CBC encryption for sensitive fields.
-/// design.md section 5: AES encryption for sensitive fields, keys stored in Keychain.
 /// Applied at repository layer, not UI.
 protocol EncryptionServiceProtocol {
     func encrypt(_ plaintext: String, recordId: UUID) -> String?

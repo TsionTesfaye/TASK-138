@@ -1,7 +1,6 @@
 import Foundation
 
 /// Simple image/video cache that can be cleared on memory warnings.
-/// design.md 7: "release caches on warning", "memory-safe media handling"
 final class MediaCache {
     static let shared = MediaCache()
 

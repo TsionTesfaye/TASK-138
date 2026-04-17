@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 4.7, 4.20, questions.md Q22
 /// Auto-generates exception cases based on deterministic rules.
 /// Exception types: missed check-in, buddy punching, misidentification.
 final class ExceptionService {
@@ -37,8 +36,8 @@ final class ExceptionService {
         if operationLogRepo.exists(operationId) { return .failure(.duplicateOperation) }
 
         if case .failure(let err) = permissionService.validateFullAccess(
-            user: user, action: "create", module: .exceptions,
-            site: site, functionKey: "exceptions"
+            user: user, action: "create", module: .checkin,
+            site: site, functionKey: "checkin"
         ) {
             return .failure(err)
         }
@@ -66,7 +65,7 @@ final class ExceptionService {
         }
     }
 
-    // MARK: - Detect Missed Check-Ins (design.md 4.20)
+    // MARK: - Detect Missed Check-Ins
 
     /// Rule: no check-in within 30 min of expected time.
     /// expectedTime represents when the user was expected to check in.
@@ -111,7 +110,7 @@ final class ExceptionService {
         return .success([exception])
     }
 
-    // MARK: - Detect Buddy Punching (design.md 4.20)
+    // MARK: - Detect Buddy Punching
 
     /// Rule: 2 users check in within 30 seconds at same location.
     /// "Same location" = within 0.01 miles (~50 feet)
@@ -123,7 +122,7 @@ final class ExceptionService {
             return .failure(err)
         }
 
-        let checkIns = checkInRepo.findInTimeRange(start: start, end: end)
+        let checkIns = checkInRepo.findInTimeRange(start: start, end: end).filter { $0.siteId == site }
         var exceptions: [ExceptionCase] = []
 
         for i in 0..<checkIns.count {
@@ -169,7 +168,7 @@ final class ExceptionService {
         return .success(exceptions)
     }
 
-    // MARK: - Detect Misidentification (design.md 4.20)
+    // MARK: - Detect Misidentification
 
     /// Rule: inconsistent check-in pattern over time.
     /// Flags if a user has check-ins at locations > 10 miles apart within 15 minutes.
@@ -182,6 +181,7 @@ final class ExceptionService {
         }
 
         let checkIns = checkInRepo.findByUserIdInTimeRange(userId: userId, start: start, end: end)
+            .filter { $0.siteId == site }
             .sorted { $0.timestamp < $1.timestamp }
 
         var exceptions: [ExceptionCase] = []
@@ -229,39 +229,42 @@ final class ExceptionService {
     /// Called by BackgroundTaskService and after each check-in event.
     /// No authorization required — this is a system-initiated batch operation.
     /// Duplicates are prevented by the individual detect methods (sourceId check).
-    func runDetectionCycle(now: Date = Date()) -> (buddyPunching: Int, misidentification: Int) {
+    func runDetectionCycle(now: Date = Date()) -> (buddyPunching: Int, misidentification: Int, missedCheckIn: Int) {
         let windowStart = now.addingTimeInterval(-3600) // last hour
 
-        // Buddy punching detection across all recent check-ins
+        // Buddy punching detection — scoped per site to avoid cross-site false positives
         let recentCheckIns = checkInRepo.findInTimeRange(start: windowStart, end: now)
         var buddyCount = 0
 
-        for i in 0..<recentCheckIns.count {
-            for j in (i + 1)..<recentCheckIns.count {
-                let a = recentCheckIns[i]
-                let b = recentCheckIns[j]
+        let checkInsBySite = Dictionary(grouping: recentCheckIns, by: { $0.siteId })
+        for (_, siteCheckIns) in checkInsBySite {
+            for i in 0..<siteCheckIns.count {
+                for j in (i + 1)..<siteCheckIns.count {
+                    let a = siteCheckIns[i]
+                    let b = siteCheckIns[j]
 
-                guard a.userId != b.userId else { continue }
-                let timeDiff = abs(a.timestamp.timeIntervalSince(b.timestamp))
-                guard timeDiff <= 30 else { continue }
-                let distance = CarpoolService.haversineDistance(
-                    lat1: a.locationLat, lng1: a.locationLng,
-                    lat2: b.locationLat, lng2: b.locationLng
-                )
-                guard distance <= 0.01 else { continue }
+                    guard a.userId != b.userId else { continue }
+                    let timeDiff = abs(a.timestamp.timeIntervalSince(b.timestamp))
+                    guard timeDiff <= 30 else { continue }
+                    let distance = CarpoolService.haversineDistance(
+                        lat1: a.locationLat, lng1: a.locationLng,
+                        lat2: b.locationLat, lng2: b.locationLng
+                    )
+                    guard distance <= 0.01 else { continue }
 
-                let existingA = exceptionCaseRepo.findBySourceId(a.id)
-                let alreadyFlagged = existingA.contains { $0.type == .buddyPunching }
-                guard !alreadyFlagged else { continue }
+                    let existingA = exceptionCaseRepo.findBySourceId(a.id)
+                    let alreadyFlagged = existingA.contains { $0.type == .buddyPunching }
+                    guard !alreadyFlagged else { continue }
 
-                let exception = ExceptionCase(
-                    id: UUID(), siteId: a.siteId, type: .buddyPunching, sourceId: a.id,
-                    reason: "Users \(a.userId) and \(b.userId) checked in within 30 seconds at same location",
-                    status: .open, createdAt: Date()
-                )
-                do { try exceptionCaseRepo.save(exception) } catch { ServiceLogger.persistenceError(ServiceLogger.exceptions, operation: "save_exception", error: error) }
-                auditService.log(actorId: UUID(), action: "exception_generated_buddy_punching", entityId: exception.id)
-                buddyCount += 1
+                    let exception = ExceptionCase(
+                        id: UUID(), siteId: a.siteId, type: .buddyPunching, sourceId: a.id,
+                        reason: "Users \(a.userId) and \(b.userId) checked in within 30 seconds at same location",
+                        status: .open, createdAt: Date()
+                    )
+                    do { try exceptionCaseRepo.save(exception) } catch { ServiceLogger.persistenceError(ServiceLogger.exceptions, operation: "save_exception", error: error) }
+                    auditService.log(actorId: UUID(), action: "exception_generated_buddy_punching", entityId: exception.id)
+                    buddyCount += 1
+                }
             }
         }
 
@@ -300,7 +303,44 @@ final class ExceptionService {
             }
         }
 
-        return (buddyPunching: buddyCount, misidentification: misidCount)
+        // Missed check-in detection — users active in prior hour who didn't check in this hour
+        // Prior window: [now-7200, now-3600]; expected time = windowStart (start of current window)
+        let priorWindowStart = windowStart.addingTimeInterval(-3600)
+        let priorCheckIns = checkInRepo.findInTimeRange(start: priorWindowStart, end: windowStart)
+        let expectedTime = windowStart
+        let gracePeriodEnd = expectedTime.addingTimeInterval(30 * 60)
+
+        struct UserSiteKey: Hashable { let userId: UUID; let siteId: String }
+        let priorActiveUsers = Set(priorCheckIns.map { UserSiteKey(userId: $0.userId, siteId: $0.siteId) })
+        var missedCount = 0
+
+        for pair in priorActiveUsers {
+            // Only flag once the 30-minute grace window has closed
+            guard now > gracePeriodEnd else { continue }
+
+            let windowCheckIns = checkInRepo.findByUserIdInTimeRange(
+                userId: pair.userId, start: expectedTime, end: gracePeriodEnd
+            ).filter { $0.siteId == pair.siteId }
+            guard windowCheckIns.isEmpty else { continue }
+
+            let existing = exceptionCaseRepo.findBySourceId(pair.userId)
+            let alreadyFlagged = existing.contains {
+                $0.type == .missedCheckIn &&
+                abs($0.createdAt.timeIntervalSince(expectedTime)) < 60
+            }
+            guard !alreadyFlagged else { continue }
+
+            let exception = ExceptionCase(
+                id: UUID(), siteId: pair.siteId, type: .missedCheckIn, sourceId: pair.userId,
+                reason: "No check-in recorded within 30 minutes of expected time \(expectedTime)",
+                status: .open, createdAt: Date()
+            )
+            do { try exceptionCaseRepo.save(exception) } catch { ServiceLogger.persistenceError(ServiceLogger.exceptions, operation: "save_exception", error: error) }
+            auditService.log(actorId: UUID(), action: "exception_generated_missed_checkin", entityId: exception.id)
+            missedCount += 1
+        }
+
+        return (buddyPunching: buddyCount, misidentification: misidCount, missedCheckIn: missedCount)
     }
 
     // MARK: - Create Exception (manual)

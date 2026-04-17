@@ -58,12 +58,13 @@ final class DashboardViewController: BaseTableViewController {
                 self.navigationController?.pushViewController(vc, animated: true)
             })
         }
-        // Check-in available to all active users
-        actions.append(DashAction(title: "Check In", icon: "location.circle", color: .systemTeal) { [weak self] in
-            guard let self = self else { return }
-            let vc = CheckInViewController(container: self.container)
-            self.navigationController?.pushViewController(vc, animated: true)
-        })
+        if PermissionMatrix.canPerform(role: user.role, action: "create", module: .checkin) {
+            actions.append(DashAction(title: "Check In", icon: "location.circle", color: .systemTeal) { [weak self] in
+                guard let self = self else { return }
+                let vc = CheckInViewController(container: self.container)
+                self.navigationController?.pushViewController(vc, animated: true)
+            })
+        }
         // Appointments
         if PermissionMatrix.canPerform(role: user.role, action: "read", module: .leads) {
             actions.append(DashAction(title: "Appointments", icon: "calendar", color: .systemPurple) { [weak self] in

@@ -7,7 +7,8 @@ final class ReminderServiceTests {
     private func makeServices() -> (
         ReminderService,
         InMemoryReminderRepository,
-        InMemoryPermissionScopeRepository
+        InMemoryPermissionScopeRepository,
+        InMemoryLeadRepository
     ) {
         let reminderRepo = InMemoryReminderRepository()
         let auditLogRepo = InMemoryAuditLogRepository()
@@ -15,13 +16,15 @@ final class ReminderServiceTests {
         let permScopeRepo = InMemoryPermissionScopeRepository()
         let permService = PermissionService(permissionScopeRepo: permScopeRepo)
         let opLogRepo = InMemoryOperationLogRepository()
+        let leadRepo = InMemoryLeadRepository()
         let service = ReminderService(
             reminderRepo: reminderRepo,
+            leadRepo: leadRepo,
             permissionService: permService,
             auditService: auditService,
             operationLogRepo: opLogRepo
         )
-        return (service, reminderRepo, permScopeRepo)
+        return (service, reminderRepo, permScopeRepo, leadRepo)
     }
 
     private func grantScope(_ user: User, scopeRepo: InMemoryPermissionScopeRepository) {
@@ -30,6 +33,20 @@ final class ReminderServiceTests {
             validFrom: Date().addingTimeInterval(-3600), validTo: Date().addingTimeInterval(3600)
         )
         try! scopeRepo.save(scope)
+    }
+
+    @discardableResult
+    private func makeLead(id: UUID = UUID(), in leadRepo: InMemoryLeadRepository) -> Lead {
+        let lead = Lead(
+            id: id, siteId: testSite, leadType: .generalContact, status: .new,
+            customerName: "Test Customer", phone: "5550000000",
+            vehicleInterest: "SUV", preferredContactWindow: "morning",
+            consentNotes: "", assignedTo: nil,
+            createdAt: Date(), updatedAt: Date(),
+            slaDeadline: nil, lastQualifyingAction: nil, archivedAt: nil
+        )
+        try! leadRepo.save(lead)
+        return lead
     }
 
     func runAll() {
@@ -50,10 +67,11 @@ final class ReminderServiceTests {
     }
 
     func testCreateReminder() {
-        let (service, reminderRepo, scopeRepo) = makeServices()
+        let (service, reminderRepo, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
         let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
         let dueAt = Date().addingTimeInterval(3600)
 
         let result = service.createReminder(
@@ -70,7 +88,7 @@ final class ReminderServiceTests {
     }
 
     func testCreateReminderPermissionDenied() {
-        let (service, _, _) = makeServices()
+        let (service, _, _, _) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         // No scope granted
 
@@ -83,19 +101,21 @@ final class ReminderServiceTests {
     }
 
     func testCreateReminderIdempotency() {
-        let (service, _, scopeRepo) = makeServices()
+        let (service, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
         let opId = UUID()
+        let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
 
         let r1 = service.createReminder(
-            by: user, site: testSite, entityId: UUID(), entityType: "Lead",
+            by: user, site: testSite, entityId: entityId, entityType: "Lead",
             dueAt: Date(), operationId: opId
         )
         TestHelpers.assertSuccess(r1)
 
         let r2 = service.createReminder(
-            by: user, site: testSite, entityId: UUID(), entityType: "Lead",
+            by: user, site: testSite, entityId: entityId, entityType: "Lead",
             dueAt: Date(), operationId: opId
         )
         TestHelpers.assertFailure(r2, code: "OP_DUPLICATE")
@@ -103,11 +123,13 @@ final class ReminderServiceTests {
     }
 
     func testCompleteReminder() {
-        let (service, reminderRepo, scopeRepo) = makeServices()
+        let (service, reminderRepo, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
+        let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
         let reminder = TestHelpers.assertSuccess(
-            service.createReminder(by: user, site: testSite, entityId: UUID(), entityType: "Lead", dueAt: Date(), operationId: UUID())
+            service.createReminder(by: user, site: testSite, entityId: entityId, entityType: "Lead", dueAt: Date(), operationId: UUID())
         )!
 
         let result = service.completeReminder(by: user, site: testSite, reminderId: reminder.id, operationId: UUID())
@@ -118,7 +140,7 @@ final class ReminderServiceTests {
     }
 
     func testCompleteReminderNotFound() {
-        let (service, _, scopeRepo) = makeServices()
+        let (service, _, scopeRepo, _) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
 
@@ -128,11 +150,13 @@ final class ReminderServiceTests {
     }
 
     func testCompleteAlreadyCompletedRejected() {
-        let (service, _, scopeRepo) = makeServices()
+        let (service, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
+        let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
         let reminder = TestHelpers.assertSuccess(
-            service.createReminder(by: user, site: testSite, entityId: UUID(), entityType: "Lead", dueAt: Date(), operationId: UUID())
+            service.createReminder(by: user, site: testSite, entityId: entityId, entityType: "Lead", dueAt: Date(), operationId: UUID())
         )!
         TestHelpers.assertSuccess(service.completeReminder(by: user, site: testSite, reminderId: reminder.id, operationId: UUID()))
 
@@ -143,11 +167,13 @@ final class ReminderServiceTests {
     }
 
     func testCancelReminder() {
-        let (service, reminderRepo, scopeRepo) = makeServices()
+        let (service, reminderRepo, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
+        let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
         let reminder = TestHelpers.assertSuccess(
-            service.createReminder(by: user, site: testSite, entityId: UUID(), entityType: "Lead", dueAt: Date(), operationId: UUID())
+            service.createReminder(by: user, site: testSite, entityId: entityId, entityType: "Lead", dueAt: Date(), operationId: UUID())
         )!
 
         let result = service.cancelReminder(by: user, site: testSite, reminderId: reminder.id, operationId: UUID())
@@ -158,11 +184,13 @@ final class ReminderServiceTests {
     }
 
     func testCancelAlreadyCanceledRejected() {
-        let (service, _, scopeRepo) = makeServices()
+        let (service, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
+        let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
         let reminder = TestHelpers.assertSuccess(
-            service.createReminder(by: user, site: testSite, entityId: UUID(), entityType: "Lead", dueAt: Date(), operationId: UUID())
+            service.createReminder(by: user, site: testSite, entityId: entityId, entityType: "Lead", dueAt: Date(), operationId: UUID())
         )!
         TestHelpers.assertSuccess(service.cancelReminder(by: user, site: testSite, reminderId: reminder.id, operationId: UUID()))
 
@@ -172,11 +200,13 @@ final class ReminderServiceTests {
     }
 
     func testCancelCompletedRejected() {
-        let (service, _, scopeRepo) = makeServices()
+        let (service, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
+        let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
         let reminder = TestHelpers.assertSuccess(
-            service.createReminder(by: user, site: testSite, entityId: UUID(), entityType: "Lead", dueAt: Date(), operationId: UUID())
+            service.createReminder(by: user, site: testSite, entityId: entityId, entityType: "Lead", dueAt: Date(), operationId: UUID())
         )!
         TestHelpers.assertSuccess(service.completeReminder(by: user, site: testSite, reminderId: reminder.id, operationId: UUID()))
 
@@ -186,18 +216,20 @@ final class ReminderServiceTests {
     }
 
     func testGetDueReminders() {
-        let (service, _, scopeRepo) = makeServices()
+        let (service, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
+        let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
 
         // Due 1 hour ago — should appear
         TestHelpers.assertSuccess(
-            service.createReminder(by: user, site: testSite, entityId: UUID(), entityType: "Lead",
+            service.createReminder(by: user, site: testSite, entityId: entityId, entityType: "Lead",
                                    dueAt: Date().addingTimeInterval(-3600), operationId: UUID())
         )
         // Due 1 hour from now — should NOT appear
         TestHelpers.assertSuccess(
-            service.createReminder(by: user, site: testSite, entityId: UUID(), entityType: "Lead",
+            service.createReminder(by: user, site: testSite, entityId: entityId, entityType: "Lead",
                                    dueAt: Date().addingTimeInterval(3600), operationId: UUID())
         )
 
@@ -207,12 +239,14 @@ final class ReminderServiceTests {
     }
 
     func testGetDueRemindersExcludesCompleted() {
-        let (service, _, scopeRepo) = makeServices()
+        let (service, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
+        let entityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
 
         let reminder = TestHelpers.assertSuccess(
-            service.createReminder(by: user, site: testSite, entityId: UUID(), entityType: "Lead",
+            service.createReminder(by: user, site: testSite, entityId: entityId, entityType: "Lead",
                                    dueAt: Date().addingTimeInterval(-3600), operationId: UUID())
         )!
         TestHelpers.assertSuccess(service.completeReminder(by: user, site: testSite, reminderId: reminder.id, operationId: UUID()))
@@ -223,10 +257,13 @@ final class ReminderServiceTests {
     }
 
     func testFindByEntity() {
-        let (service, _, scopeRepo) = makeServices()
+        let (service, _, scopeRepo, leadRepo) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
         grantScope(user, scopeRepo: scopeRepo)
         let entityId = UUID()
+        let otherEntityId = UUID()
+        makeLead(id: entityId, in: leadRepo)
+        makeLead(id: otherEntityId, in: leadRepo)
 
         TestHelpers.assertSuccess(
             service.createReminder(by: user, site: testSite, entityId: entityId, entityType: "Lead", dueAt: Date(), operationId: UUID())
@@ -236,7 +273,7 @@ final class ReminderServiceTests {
         )
         // Different entity — should not appear
         TestHelpers.assertSuccess(
-            service.createReminder(by: user, site: testSite, entityId: UUID(), entityType: "Lead", dueAt: Date(), operationId: UUID())
+            service.createReminder(by: user, site: testSite, entityId: otherEntityId, entityType: "Lead", dueAt: Date(), operationId: UUID())
         )
 
         let result = service.findByEntity(by: user, site: testSite, entityId: entityId, entityType: "Lead")
@@ -246,7 +283,7 @@ final class ReminderServiceTests {
     }
 
     func testFindByEntityPermissionDenied() {
-        let (service, _, _) = makeServices()
+        let (service, _, _, _) = makeServices()
         let user = TestHelpers.makeSalesAssociate()
 
         let result = service.findByEntity(by: user, site: testSite, entityId: UUID(), entityType: "Lead")

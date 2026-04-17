@@ -8,12 +8,16 @@ final class PermissionServiceTests {
         testAdminHasFullAccess()
         testSalesAssociateLeadsCRUD()
         testSalesAssociateInventoryDenied()
-        testSalesAssociateCarpoolViewOnly()
+        testSalesAssociateCarpoolCRUD()
         testSalesAssociateAppealsCreate()
+        testSalesAssociateCheckInCreate()
+        testSalesAssociateExceptionsReadOnly()
         testInventoryClerkInventoryCRUD()
         testInventoryClerkLeadsDenied()
+        testInventoryClerkCheckInCreate()
         testComplianceReviewerAppealsReview()
         testComplianceReviewerLeadsReadOnly()
+        testComplianceReviewerCheckInCreate()
         testInactiveUserDenied()
         testScopeValidation()
         testScopeDefaultDeny()
@@ -50,12 +54,12 @@ final class PermissionServiceTests {
         print("  PASS: testSalesAssociateInventoryDenied")
     }
 
-    func testSalesAssociateCarpoolViewOnly() {
+    func testSalesAssociateCarpoolCRUD() {
         let service = makeService()
         let user = TestHelpers.makeSalesAssociate()
         TestHelpers.assertSuccess(service.validateAccess(user: user, action: "read", module: .carpool))
-        TestHelpers.assertFailure(service.validateAccess(user: user, action: "create", module: .carpool), code: "PERM_DENIED")
-        print("  PASS: testSalesAssociateCarpoolViewOnly")
+        TestHelpers.assertSuccess(service.validateAccess(user: user, action: "create", module: .carpool))
+        print("  PASS: testSalesAssociateCarpoolCRUD")
     }
 
     func testSalesAssociateAppealsCreate() {
@@ -65,6 +69,23 @@ final class PermissionServiceTests {
         TestHelpers.assertSuccess(service.validateAccess(user: user, action: "read", module: .appeals))
         TestHelpers.assertFailure(service.validateAccess(user: user, action: "approve", module: .appeals), code: "PERM_DENIED")
         print("  PASS: testSalesAssociateAppealsCreate")
+    }
+
+    func testSalesAssociateCheckInCreate() {
+        let service = makeService()
+        let user = TestHelpers.makeSalesAssociate()
+        TestHelpers.assertSuccess(service.validateAccess(user: user, action: "create", module: .checkin))
+        TestHelpers.assertSuccess(service.validateAccess(user: user, action: "read", module: .checkin))
+        TestHelpers.assertFailure(service.validateAccess(user: user, action: "delete", module: .checkin), code: "PERM_DENIED")
+        print("  PASS: testSalesAssociateCheckInCreate")
+    }
+
+    func testSalesAssociateExceptionsReadOnly() {
+        let service = makeService()
+        let user = TestHelpers.makeSalesAssociate()
+        TestHelpers.assertSuccess(service.validateAccess(user: user, action: "read", module: .exceptions))
+        TestHelpers.assertFailure(service.validateAccess(user: user, action: "create", module: .exceptions), code: "PERM_DENIED")
+        print("  PASS: testSalesAssociateExceptionsReadOnly")
     }
 
     func testInventoryClerkInventoryCRUD() {
@@ -82,6 +103,14 @@ final class PermissionServiceTests {
         print("  PASS: testInventoryClerkLeadsDenied")
     }
 
+    func testInventoryClerkCheckInCreate() {
+        let service = makeService()
+        let user = TestHelpers.makeInventoryClerk()
+        TestHelpers.assertSuccess(service.validateAccess(user: user, action: "create", module: .checkin))
+        TestHelpers.assertFailure(service.validateAccess(user: user, action: "create", module: .exceptions), code: "PERM_DENIED")
+        print("  PASS: testInventoryClerkCheckInCreate")
+    }
+
     func testComplianceReviewerAppealsReview() {
         let service = makeService()
         let user = TestHelpers.makeComplianceReviewer()
@@ -94,9 +123,17 @@ final class PermissionServiceTests {
     func testComplianceReviewerLeadsReadOnly() {
         let service = makeService()
         let user = TestHelpers.makeComplianceReviewer()
-        TestHelpers.assertSuccess(service.validateAccess(user: user, action: "read", module: .leads))
+        TestHelpers.assertFailure(service.validateAccess(user: user, action: "read", module: .leads), code: "PERM_DENIED")
         TestHelpers.assertFailure(service.validateAccess(user: user, action: "create", module: .leads), code: "PERM_DENIED")
         print("  PASS: testComplianceReviewerLeadsReadOnly")
+    }
+
+    func testComplianceReviewerCheckInCreate() {
+        let service = makeService()
+        let user = TestHelpers.makeComplianceReviewer()
+        TestHelpers.assertSuccess(service.validateAccess(user: user, action: "create", module: .checkin))
+        TestHelpers.assertFailure(service.validateAccess(user: user, action: "update", module: .checkin), code: "PERM_DENIED")
+        print("  PASS: testComplianceReviewerCheckInCreate")
     }
 
     func testInactiveUserDenied() {

@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.12.1
 struct CountEntry: Equatable {
     let id: UUID
     var siteId: String

@@ -40,6 +40,7 @@ final class LeadServiceTests {
         testNonAdminCannotReopen()
         testInvalidTransitionRejected()
         testCreateLeadPermissionDenied()
+        testCreateLeadEmptySiteDenied()
         testIdempotency()
         testPhoneMasking()
         testStatusChangeResetseSLA()
@@ -167,6 +168,21 @@ final class LeadServiceTests {
         let result = service.createLead(by: clerk, site: testSite, input: input, operationId: UUID())
         TestHelpers.assertFailure(result, code: "PERM_DENIED")
         print("  PASS: testCreateLeadPermissionDenied")
+    }
+
+    func testCreateLeadEmptySiteDenied() {
+        let (service, _, _, _) = makeServices()
+        let admin = TestHelpers.makeAdmin()
+        let input = LeadService.CreateLeadInput(
+            leadType: .quoteRequest, customerName: "Test", phone: "415-555-0000",
+            vehicleInterest: "", preferredContactWindow: "", consentNotes: ""
+        )
+        // Empty or whitespace-only site must be rejected to prevent siteId="" data corruption
+        let result = service.createLead(by: admin, site: "", input: input, operationId: UUID())
+        TestHelpers.assertFailure(result, code: "SITE_REQUIRED")
+        let resultWS = service.createLead(by: admin, site: "   ", input: input, operationId: UUID())
+        TestHelpers.assertFailure(resultWS, code: "SITE_REQUIRED")
+        print("  PASS: testCreateLeadEmptySiteDenied")
     }
 
     func testIdempotency() {

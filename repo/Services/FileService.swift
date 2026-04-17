@@ -1,7 +1,6 @@
 import Foundation
 // CommonCrypto is Apple-only; FileService now routes SHA-256 through CryptoShim.
 
-/// design.md 4.9, questions.md Q24-Q26
 /// Handles file uploads, validation, SHA-256 fingerprinting, watermark, lifecycle.
 /// Sandbox-only storage. No files ever leave the device.
 final class FileService {
@@ -53,6 +52,13 @@ final class FileService {
             return .failure(err)
         }
 
+        // For appeal evidence, verify the appeal exists at this site and caller has ownership
+        if entityType == "Appeal" {
+            if case .failure(let err) = authorizeAppealEvidenceAccess(appealId: entityId, user: user, siteId: site) {
+                return .failure(err)
+            }
+        }
+
         // Format validation — declared type must be allowed
         guard [EvidenceFileType.jpg, .png, .mp4].contains(fileType) else {
             return .failure(.invalidFileFormat)
@@ -76,7 +82,13 @@ final class FileService {
         let filePath = sandboxPath(for: fileName)
 
         do {
+            #if canImport(UIKit)
+            // iOS Data Protection: evidence file readable only while device is unlocked.
+            try data.write(to: URL(fileURLWithPath: filePath),
+                           options: [.atomic, .completeFileProtectionUnlessOpen])
+            #else
             try data.write(to: URL(fileURLWithPath: filePath))
+            #endif
         } catch {
             return .failure(ServiceError(code: "FILE_WRITE_FAIL", message: error.localizedDescription))
         }
@@ -104,7 +116,7 @@ final class FileService {
         }
     }
 
-    // MARK: - Watermark (questions.md Q26)
+    // MARK: - Watermark
 
     /// Apply visible watermark "DealerOps . Confidential" to preview.
     /// Original file is preserved. Watermark applies at display time.
@@ -180,7 +192,7 @@ final class FileService {
         }
     }
 
-    // MARK: - Lifecycle: Purge Rejected Appeal Media (questions.md Q25)
+    // MARK: - Lifecycle: Purge Rejected Appeal Media
 
     /// Delete evidence for denied appeals older than 30 days unless pinned.
     /// Only purges files where:

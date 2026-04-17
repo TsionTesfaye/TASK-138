@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 4.8, 4.13 (Appeal State Machine), questions.md Q23
 /// Manages appeal lifecycle. Approval updates the originating ExceptionCase.
 final class AppealService {
 

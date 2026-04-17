@@ -68,16 +68,30 @@ final class AdminPanelViewController: BaseTableViewController {
 
     // MARK: - Table
 
-    override func tableView(_ tv: UITableView, numberOfRowsInSection section: Int) -> Int { users.count }
+    override func numberOfSections(in tableView: UITableView) -> Int { 2 }
+
+    override func tableView(_ tv: UITableView, titleForHeaderInSection section: Int) -> String? {
+        section == 0 ? "Users" : "Admin Tools"
+    }
+
+    override func tableView(_ tv: UITableView, numberOfRowsInSection section: Int) -> Int {
+        section == 0 ? users.count : 1
+    }
 
     override func tableView(_ tv: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tv.dequeueReusableCell(withIdentifier: "cell", for: indexPath)
-        let user = users[indexPath.row]
         var config = cell.defaultContentConfiguration()
-        config.text = user.username
-        config.secondaryText = "\(user.role.rawValue.replacingOccurrences(of: "_", with: " ").capitalized) \u{2022} \(user.isActive ? "Active" : "Inactive")"
-        config.image = UIImage(systemName: user.isActive ? "person.circle" : "person.circle.fill")
-        config.imageProperties.tintColor = user.isActive ? .systemGreen : .systemGray
+        if indexPath.section == 0 {
+            let user = users[indexPath.row]
+            config.text = user.username
+            config.secondaryText = "\(user.role.rawValue.replacingOccurrences(of: "_", with: " ").capitalized) \u{2022} \(user.isActive ? "Active" : "Inactive")"
+            config.image = UIImage(systemName: user.isActive ? "person.circle" : "person.circle.fill")
+            config.imageProperties.tintColor = user.isActive ? .systemGreen : .systemGray
+        } else {
+            config.text = "Audit Logs"
+            config.image = UIImage(systemName: "doc.text.magnifyingglass")
+            config.imageProperties.tintColor = .systemIndigo
+        }
         config.textProperties.font = .preferredFont(forTextStyle: .body)
         config.textProperties.adjustsFontForContentSizeCategory = true
         config.secondaryTextProperties.font = .preferredFont(forTextStyle: .caption1)
@@ -89,8 +103,12 @@ final class AdminPanelViewController: BaseTableViewController {
 
     override func tableView(_ tv: UITableView, didSelectRowAt indexPath: IndexPath) {
         tv.deselectRow(at: indexPath, animated: true)
-        let user = users[indexPath.row]
-        showUserActions(user)
+        if indexPath.section == 0 {
+            let user = users[indexPath.row]
+            showUserActions(user)
+        } else {
+            navigationController?.pushViewController(AuditLogViewController(container: container), animated: true)
+        }
     }
 
     private func showUserActions(_ user: User) {

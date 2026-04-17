@@ -10,6 +10,7 @@ final class AppointmentListViewController: BaseTableViewController {
 
     init(container: ServiceContainer) {
         super.init(container: container, style: .insetGrouped)
+        site = container.currentSite
     }
 
     required init?(coder: NSCoder) { return nil }

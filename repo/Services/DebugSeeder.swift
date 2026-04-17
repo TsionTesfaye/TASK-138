@@ -28,9 +28,9 @@ struct DebugSeeder {
     // Function keys granted to each non-admin role at demoSite.
     // Administrators bypass scope checks entirely (PermissionService.validateScope).
     private static let scopesByRole: [UserRole: [String]] = [
-        .salesAssociate:     ["leads", "carpool"],
-        .inventoryClerk:     ["inventory"],
-        .complianceReviewer: ["compliance", "leads"],
+        .salesAssociate:     ["leads", "carpool", "checkin"],
+        .inventoryClerk:     ["inventory", "checkin"],
+        .complianceReviewer: ["exceptions", "appeals", "checkin"],
     ]
 
     init(userRepo: UserRepository, permissionScopeRepo: PermissionScopeRepository, authService: AuthService) {

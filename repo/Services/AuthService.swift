@@ -2,7 +2,6 @@ import Foundation
 // CommonCrypto is Apple-only; AuthService now routes all crypto through CryptoShim
 // (pure-Swift fallbacks on Linux, CommonCrypto on Apple).
 
-/// design.md 4.1, questions.md 1-5
 /// Handles bootstrap, login, password validation, lockout, biometric enablement.
 final class AuthService {
 
@@ -16,7 +15,7 @@ final class AuthService {
         self.operationLogRepo = operationLogRepo
     }
 
-    // MARK: - Bootstrap (questions.md Q1)
+    // MARK: - Bootstrap
 
     /// Create the first Administrator account. Only works when no users exist.
     /// After creation, bootstrap is permanently disabled (User.count > 0).
@@ -56,7 +55,7 @@ final class AuthService {
         }
     }
 
-    // MARK: - Login (questions.md Q3)
+    // MARK: - Login
 
     /// Authenticate with username + password. Enforces lockout.
     func login(username: String, password: String, now: Date = Date()) -> ServiceResult<User> {
@@ -116,7 +115,7 @@ final class AuthService {
         return .success(user)
     }
 
-    // MARK: - Biometric (questions.md Q4)
+    // MARK: - Biometric
 
     /// Enable biometric authentication. Requires password re-entry.
     func enableBiometric(userId: UUID, password: String) -> ServiceResult<Void> {
@@ -156,7 +155,7 @@ final class AuthService {
         }
     }
 
-    // MARK: - Password Policy (questions.md Q2)
+    // MARK: - Password Policy
 
     /// Validate password against policy. Returns nil if valid, ServiceError if invalid.
     /// Rules: min 12 chars, 1 uppercase, 1 lowercase, 1 number

@@ -27,6 +27,8 @@ final class ExceptionServiceTests {
         testBuddyPunchingNotDetectedDifferentLocations()
         testMisidentificationDetected()
         testRecordCheckIn()
+        testRecordCheckInByStaff()
+        testRecordCheckInNoScopeDenied()
     }
 
     func testMissedCheckInDetected() {
@@ -131,5 +133,32 @@ final class ExceptionServiceTests {
         TestHelpers.assert(checkIn.userId == admin.id)
         TestHelpers.assert(checkInRepo.findAll().count == 1)
         print("  PASS: testRecordCheckIn")
+    }
+
+    func testRecordCheckInByStaff() {
+        let (service, checkInRepo, _, scopeRepo) = makeService()
+
+        for staff in [TestHelpers.makeSalesAssociate(), TestHelpers.makeInventoryClerk(), TestHelpers.makeComplianceReviewer()] {
+            let scope = PermissionScope(
+                id: UUID(), userId: staff.id, site: "lot-a", functionKey: "checkin",
+                validFrom: Date().addingTimeInterval(-3600), validTo: Date().addingTimeInterval(3600)
+            )
+            try! scopeRepo.save(scope)
+            let result = service.recordCheckIn(by: staff, site: "lot-a", locationLat: 37.77, locationLng: -122.41, operationId: UUID())
+            let checkIn = TestHelpers.assertSuccess(result)!
+            TestHelpers.assert(checkIn.userId == staff.id, "\(staff.role) should be able to check in")
+        }
+
+        TestHelpers.assert(checkInRepo.findAll().count == 3, "All 3 staff roles should have recorded a check-in")
+        print("  PASS: testRecordCheckInByStaff")
+    }
+
+    func testRecordCheckInNoScopeDenied() {
+        let (service, _, _, _) = makeService()
+        let staff = TestHelpers.makeSalesAssociate()
+        // No "checkin" scope granted
+        let result = service.recordCheckIn(by: staff, site: "lot-a", locationLat: 37.77, locationLng: -122.41, operationId: UUID())
+        TestHelpers.assertFailure(result, code: "SCOPE_DENIED")
+        print("  PASS: testRecordCheckInNoScopeDenied")
     }
 }

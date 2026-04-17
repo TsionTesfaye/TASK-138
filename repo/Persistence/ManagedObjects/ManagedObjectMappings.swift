@@ -55,6 +55,23 @@ extension NSManagedObject {
     }
 }
 
+// MARK: - Role Mapping
+
+extension Role {
+    init(mo: NSManagedObject) {
+        self.init(
+            id: mo.uuid("id"),
+            name: mo.enumValue("name") as UserRole,
+            displayName: mo.string("displayName")
+        )
+    }
+    func apply(to mo: NSManagedObject) {
+        mo.setValue(id, forKey: "id")
+        mo.setValue(name.rawValue, forKey: "name")
+        mo.setValue(displayName, forKey: "displayName")
+    }
+}
+
 // MARK: - User Mapping
 
 extension User {
@@ -306,13 +323,14 @@ extension AuditLog {
 extension Note {
     init(mo: NSManagedObject) {
         self.init(
-            id: mo.uuid("id"), entityId: mo.uuid("entityId"),
+            id: mo.uuid("id"), siteId: mo.string("siteId"), entityId: mo.uuid("entityId"),
             entityType: mo.string("entityType"), content: mo.string("content"),
             createdAt: mo.date("createdAt"), createdBy: mo.uuid("createdBy")
         )
     }
     func apply(to mo: NSManagedObject) {
-        mo.setValue(id, forKey: "id"); mo.setValue(entityId, forKey: "entityId")
+        mo.setValue(id, forKey: "id"); mo.setValue(siteId, forKey: "siteId")
+        mo.setValue(entityId, forKey: "entityId")
         mo.setValue(entityType, forKey: "entityType"); mo.setValue(content, forKey: "content")
         mo.setValue(createdAt, forKey: "createdAt"); mo.setValue(createdBy, forKey: "createdBy")
     }
@@ -344,14 +362,15 @@ extension TagAssignment {
 extension Reminder {
     init(mo: NSManagedObject) {
         self.init(
-            id: mo.uuid("id"), entityId: mo.uuid("entityId"),
+            id: mo.uuid("id"), siteId: mo.string("siteId"), entityId: mo.uuid("entityId"),
             entityType: mo.string("entityType"), createdBy: mo.uuid("createdBy"),
             dueAt: mo.date("dueAt"),
             status: mo.enumValue("status") as ReminderStatus
         )
     }
     func apply(to mo: NSManagedObject) {
-        mo.setValue(id, forKey: "id"); mo.setValue(entityId, forKey: "entityId")
+        mo.setValue(id, forKey: "id"); mo.setValue(siteId, forKey: "siteId")
+        mo.setValue(entityId, forKey: "entityId")
         mo.setValue(entityType, forKey: "entityType"); mo.setValue(createdBy, forKey: "createdBy")
         mo.setValue(dueAt, forKey: "dueAt"); mo.setValue(status.rawValue, forKey: "status")
     }
@@ -381,23 +400,6 @@ extension PoolOrder {
         mo.setValue(Int32(seatsAvailable), forKey: "seatsAvailable")
         mo.setValue(vehicleType, forKey: "vehicleType")
         mo.setValue(createdBy, forKey: "createdBy"); mo.setValue(status.rawValue, forKey: "status")
-    }
-}
-
-// MARK: - RouteSegment Mapping
-
-extension RouteSegment {
-    init(mo: NSManagedObject) {
-        self.init(
-            id: mo.uuid("id"), poolOrderId: mo.uuid("poolOrderId"),
-            sequence: mo.int32("sequence"),
-            locationLat: mo.double("locationLat"), locationLng: mo.double("locationLng")
-        )
-    }
-    func apply(to mo: NSManagedObject) {
-        mo.setValue(id, forKey: "id"); mo.setValue(poolOrderId, forKey: "poolOrderId")
-        mo.setValue(Int32(sequence), forKey: "sequence")
-        mo.setValue(locationLat, forKey: "locationLat"); mo.setValue(locationLng, forKey: "locationLng")
     }
 }
 

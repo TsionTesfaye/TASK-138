@@ -1,7 +1,6 @@
 import Foundation
 
 /// Unified structured error type across all services.
-/// design.md 5.1: reject operation, return structured error with code + message.
 struct ServiceError: Error, Equatable {
     let code: String
     let message: String

@@ -9,6 +9,7 @@ final class CarpoolListViewController: BaseTableViewController {
 
     init(container: ServiceContainer) {
         super.init(container: container, style: .insetGrouped)
+        site = container.currentSite
     }
 
     required init?(coder: NSCoder) { return nil }
@@ -77,6 +78,8 @@ final class CarpoolListViewController: BaseTableViewController {
 final class CreatePoolOrderViewController: FormViewController, CLLocationManagerDelegate {
 
     private let originLatField, originLngField, destLatField, destLngField, seatsField, vehicleField: UITextField
+    private let startTimePicker = UIDatePicker()
+    private let endTimePicker = UIDatePicker()
     var site: String = ""
     private let locationManager = CLLocationManager()
     private var locationCompletion: ((CLLocation?) -> Void)?
@@ -113,6 +116,24 @@ final class CreatePoolOrderViewController: FormViewController, CLLocationManager
         let locBtn = makeButton(title: "Use Current Location", style: .secondary)
         locBtn.addTarget(self, action: #selector(useLocation), for: .touchUpInside)
         stackView.addArrangedSubview(locBtn)
+
+        // Start time picker
+        let startLabel = makeLabel(text: "Departure Time", style: .subheadline)
+        stackView.addArrangedSubview(startLabel)
+        startTimePicker.datePickerMode = .dateAndTime
+        startTimePicker.preferredDatePickerStyle = .compact
+        startTimePicker.minimumDate = Date().addingTimeInterval(60)
+        startTimePicker.date = Date().addingTimeInterval(3600)
+        stackView.addArrangedSubview(startTimePicker)
+
+        // End time picker
+        let endLabel = makeLabel(text: "Return / End Time", style: .subheadline)
+        stackView.addArrangedSubview(endLabel)
+        endTimePicker.datePickerMode = .dateAndTime
+        endTimePicker.preferredDatePickerStyle = .compact
+        endTimePicker.minimumDate = Date().addingTimeInterval(120)
+        endTimePicker.date = Date().addingTimeInterval(7200)
+        stackView.addArrangedSubview(endTimePicker)
 
         let submitBtn = makeButton(title: "Create Order")
         submitBtn.addTarget(self, action: #selector(didTapSubmit), for: .touchUpInside)
@@ -181,9 +202,11 @@ final class CreatePoolOrderViewController: FormViewController, CLLocationManager
         let vehicle = vehicleField.text?.trimmingCharacters(in: .whitespaces) ?? ""
         guard !vehicle.isEmpty else { showFormError("Enter vehicle type"); return }
 
+        guard startTimePicker.date < endTimePicker.date else { showFormError("End time must be after start time"); return }
+
         let input = CarpoolService.CreatePoolOrderInput(
             originLat: olat, originLng: olng, destinationLat: dlat, destinationLng: dlng,
-            startTime: Date(), endTime: Date().addingTimeInterval(3600),
+            startTime: startTimePicker.date, endTime: endTimePicker.date,
             seatsAvailable: seats, vehicleType: vehicle
         )
         let result = container.carpoolService.createPoolOrder(by: user, site: site, input: input, operationId: UUID())

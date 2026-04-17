@@ -28,7 +28,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             seeder.seed()
         }
 
-        // Register background tasks (design.md 6)
+        // Register background tasks
         registerBackgroundTasks()
 
         // Set up window FIRST for cold-start speed (< 1.5s target)
@@ -62,7 +62,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = main
     }
 
-    // MARK: - Background Re-authentication (design.md 4.17)
+    // MARK: - Background Re-authentication
 
     func applicationDidEnterBackground(_ application: UIApplication) {
         container.sessionService.onAppBackground()
@@ -78,19 +78,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 animated: false
             )
         }
-        // Run background tasks on foreground (design.md 6.1)
+        // Run background tasks on foreground
         container.backgroundTaskService.runAllTasks()
     }
 
-    // MARK: - Memory Warning (design.md 7)
+    // MARK: - Memory Warning
 
     func applicationDidReceiveMemoryWarning(_ application: UIApplication) {
-        // Release media caches as required by performance constraints (design.md 7)
+        // Release media caches as required by performance constraints
         MediaCache.shared.clear()
         URLCache.shared.removeAllCachedResponses()
     }
 
-    // MARK: - Background Tasks Registration (design.md 6)
+    // MARK: - Background Tasks Registration
 
     private func registerBackgroundTasks() {
         // SLA checks — every 15 minutes

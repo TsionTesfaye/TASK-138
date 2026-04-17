@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 4.17, questions.md Q5
 /// Manages active session and background re-authentication.
 /// Session state stored in memory. Last authenticated user ID persisted via UserDefaults
 /// for biometric re-authentication after app restart.
@@ -9,6 +8,8 @@ final class SessionService {
     /// In-memory session state
     private(set) var currentUser: User?
     private(set) var lastActiveTimestamp: Date?
+    /// Recorded when the app enters background; re-auth triggered if background exceeds timeout.
+    private(set) var backgroundEnteredAt: Date?
     private let backgroundTimeoutSeconds: TimeInterval = 5 * 60 // 5 minutes
 
     /// User repository for biometric re-auth lookup
@@ -36,18 +37,21 @@ final class SessionService {
         lastActiveTimestamp = now()
     }
 
-    /// Check if the session is still valid (not expired).
-    /// Returns false if idle > 5 minutes or no session exists.
+    /// Check if the session is still valid.
+    /// Returns false if the app was in background for > 5 minutes, or no session exists.
     func isSessionValid() -> Bool {
-        guard currentUser != nil, let lastActive = lastActiveTimestamp else {
-            return false
+        guard currentUser != nil else { return false }
+        // Primary check: how long was the app in background?
+        if let enteredBackground = backgroundEnteredAt {
+            let backgroundDuration = now().timeIntervalSince(enteredBackground)
+            return backgroundDuration <= backgroundTimeoutSeconds
         }
-        let elapsed = now().timeIntervalSince(lastActive)
-        return elapsed <= backgroundTimeoutSeconds
+        // Fallback: idle time (applies before first background entry)
+        guard let lastActive = lastActiveTimestamp else { return false }
+        return now().timeIntervalSince(lastActive) <= backgroundTimeoutSeconds
     }
 
     /// Check if re-authentication is required.
-    /// Returns true if session has expired (idle > 5 minutes).
     func requiresReAuthentication() -> Bool {
         return !isSessionValid()
     }
@@ -55,17 +59,19 @@ final class SessionService {
     func endSession() {
         currentUser = nil
         lastActiveTimestamp = nil
+        backgroundEnteredAt = nil
     }
 
-    /// Call when app returns to foreground. Returns whether re-auth is needed.
+    /// Call when app returns to foreground. Clears background timestamp. Returns whether re-auth is needed.
     func onAppForeground() -> Bool {
-        return requiresReAuthentication()
+        let needsReAuth = requiresReAuthentication()
+        backgroundEnteredAt = nil
+        return needsReAuth
     }
 
-    /// Call when app enters background. Records the timestamp.
+    /// Call when app enters background. Records the moment the app left foreground.
     func onAppBackground() {
-        // lastActiveTimestamp already set from last recordActivity
-        // No additional action needed — the check happens on foreground
+        backgroundEnteredAt = now()
     }
 
     // MARK: - Biometric Re-authentication

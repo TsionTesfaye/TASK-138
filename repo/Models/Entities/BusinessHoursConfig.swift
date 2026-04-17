@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.19
 struct BusinessHoursConfig: Equatable {
     let id: UUID
     var startHour: Int  // default 9

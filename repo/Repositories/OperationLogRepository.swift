@@ -1,6 +1,6 @@
 import Foundation
 
-/// Supports idempotency per design.md 4.14
+/// Supports idempotency
 protocol OperationLogRepository {
     func exists(_ operationId: UUID) -> Bool
     func save(_ operationId: UUID) throws

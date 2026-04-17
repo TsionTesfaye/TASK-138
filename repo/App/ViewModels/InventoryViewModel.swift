@@ -8,6 +8,11 @@ final class InventoryViewModel: BaseViewModel {
     private(set) var pendingOrders: [AdjustmentOrder] = []
     var site: String = ""
 
+    override init(container: ServiceContainer) {
+        super.init(container: container)
+        site = container.currentSite
+    }
+
     func loadTasks() {
         guard let user = currentUser() else { return }
         setState(.loading)

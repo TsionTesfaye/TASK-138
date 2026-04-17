@@ -5,14 +5,15 @@ final class UserManagementServiceTests {
 
     private func makeServices() -> (UserManagementService, InMemoryUserRepository, InMemoryAuditLogRepository) {
         let userRepo = InMemoryUserRepository()
+        let roleRepo = InMemoryRoleRepository()
         let auditLogRepo = InMemoryAuditLogRepository()
         let auditService = AuditService(auditLogRepo: auditLogRepo)
         let permService = PermissionService(permissionScopeRepo: InMemoryPermissionScopeRepository())
         let opLogRepo = InMemoryOperationLogRepository()
         let authService = AuthService(userRepo: userRepo, auditService: auditService, operationLogRepo: opLogRepo)
         let service = UserManagementService(
-            userRepo: userRepo, permissionService: permService, authService: authService,
-            auditService: auditService, operationLogRepo: opLogRepo
+            userRepo: userRepo, roleRepo: roleRepo, permissionService: permService,
+            authService: authService, auditService: auditService, operationLogRepo: opLogRepo
         )
         return (service, userRepo, auditLogRepo)
     }

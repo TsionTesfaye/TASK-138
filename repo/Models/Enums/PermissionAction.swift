@@ -7,6 +7,7 @@ enum PermissionModule: String, CaseIterable, Codable {
     case carpool = "carpool"
     case appeals = "appeals"
     case exceptions = "exceptions"
+    case checkin = "checkin"
     case admin = "admin"
 }
 
@@ -21,64 +22,51 @@ enum PermissionLevel: String, CaseIterable, Codable {
     case full = "full"
 }
 
-/// Permission matrix from design.md section 4.19
 struct PermissionMatrix {
 
     /// Returns the permission level for a given role and module.
-    /// Matches design.md 4.19 exactly:
-    /// | Role                | Leads | Inventory | Carpool | Appeals | Admin |
-    /// |---------------------|-------|-----------|---------|---------|-------|
-    /// | Administrator       | FULL  | FULL      | FULL    | FULL    | FULL  |
-    /// | Sales Associate     | CRUD  | NONE      | VIEW    | CREATE  | NONE  |
-    /// | Inventory Clerk     | NONE  | CRUD      | NONE    | NONE    | NONE  |
-    /// | Compliance Reviewer | READ  | READ      | NONE    | REVIEW  | NONE  |
+    ///
+    /// | Role                | Leads | Inventory | Carpool | Appeals | Exceptions | Checkin | Admin |
+    /// |---------------------|-------|-----------|---------|---------|------------|---------|-------|
+    /// | Administrator       | FULL  | FULL      | FULL    | FULL    | FULL       | FULL    | FULL  |
+    /// | Sales Associate     | CRUD  | NONE      | CRUD    | CREATE  | READ       | CREATE  | NONE  |
+    /// | Inventory Clerk     | NONE  | CRUD      | NONE    | NONE    | NONE       | CREATE  | NONE  |
+    /// | Compliance Reviewer | NONE  | NONE      | NONE    | REVIEW  | REVIEW     | CREATE  | NONE  |
+    ///
+    /// Checkin is a dedicated module so any active scoped staff member can record their own
+    /// check-in without being granted exception-management permissions.
     static func level(for role: UserRole, module: PermissionModule) -> PermissionLevel {
         switch (role, module) {
-        // Administrator: full everything
+        // Administrator: full access to everything
         case (.administrator, _):
             return .full
 
         // Sales Associate
-        case (.salesAssociate, .leads):
-            return .crud
-        case (.salesAssociate, .inventory):
-            return .none
-        case (.salesAssociate, .carpool):
-            return .view
-        case (.salesAssociate, .appeals):
-            return .create
-        case (.salesAssociate, .exceptions):
-            return .read
-        case (.salesAssociate, .admin):
-            return .none
+        case (.salesAssociate, .leads):       return .crud
+        case (.salesAssociate, .inventory):   return .none
+        case (.salesAssociate, .carpool):     return .crud
+        case (.salesAssociate, .appeals):     return .create
+        case (.salesAssociate, .exceptions):  return .read
+        case (.salesAssociate, .checkin):     return .create
+        case (.salesAssociate, .admin):       return .none
 
         // Inventory Clerk
-        case (.inventoryClerk, .leads):
-            return .none
-        case (.inventoryClerk, .inventory):
-            return .crud
-        case (.inventoryClerk, .carpool):
-            return .none
-        case (.inventoryClerk, .appeals):
-            return .none
-        case (.inventoryClerk, .exceptions):
-            return .none
-        case (.inventoryClerk, .admin):
-            return .none
+        case (.inventoryClerk, .leads):       return .none
+        case (.inventoryClerk, .inventory):   return .crud
+        case (.inventoryClerk, .carpool):     return .none
+        case (.inventoryClerk, .appeals):     return .none
+        case (.inventoryClerk, .exceptions):  return .none
+        case (.inventoryClerk, .checkin):     return .create
+        case (.inventoryClerk, .admin):       return .none
 
         // Compliance Reviewer
-        case (.complianceReviewer, .leads):
-            return .read
-        case (.complianceReviewer, .inventory):
-            return .read
-        case (.complianceReviewer, .carpool):
-            return .none
-        case (.complianceReviewer, .appeals):
-            return .review
-        case (.complianceReviewer, .exceptions):
-            return .review
-        case (.complianceReviewer, .admin):
-            return .none
+        case (.complianceReviewer, .leads):       return .none
+        case (.complianceReviewer, .inventory):   return .none
+        case (.complianceReviewer, .carpool):     return .none
+        case (.complianceReviewer, .appeals):     return .review
+        case (.complianceReviewer, .exceptions):  return .review
+        case (.complianceReviewer, .checkin):     return .create
+        case (.complianceReviewer, .admin):       return .none
         }
     }
 

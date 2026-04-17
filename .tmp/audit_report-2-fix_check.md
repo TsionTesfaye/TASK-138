@@ -1,74 +1,71 @@
-# DealerOps Static Recheck (From Scratch)
-Date: 2026-04-14
-Mode: Static-only (no app run, no tests run)
+# DealerOps Fresh Recheck Report (All 7 Prior Issues)
 
-## Overall
-**Pass**
+Date: 2026-04-17  
+Mode: Static-only (no app run, no tests executed, no Docker)
 
-- Rechecked all 10 previously reported findings against current code.
-- **10/10 are fixed.**
+## Overall Status
+- Fixed: 7
+- Not Fixed: 0
 
-## Per-Issue Results
-
-### 1) Blocker — Missing lot/site data isolation at model/repository layer
-- Status: **Fixed**
-- What is fixed:
-  - `siteId` exists on lead/inventory entities and many service/repo paths are site-filtered.
-  - Evidence: `Models/Entities/Lead.swift:6`, `Models/Entities/InventoryItem.swift:6`, `Repositories/LeadRepository.swift:10`, `Persistence/CoreDataRepositories/CoreDataLeadRepository.swift:44`, `Services/LeadService.swift:115`, `Services/LeadService.swift:240`, `Services/LeadService.swift:261`
-- Recheck conclusion:
-  - Site isolation is now materially enforced across reviewed entity, repository, and service paths for this finding.
-  - Exception/appeal/file paths are site-scoped where this issue previously failed: `Services/ExceptionService.swift:354`, `Services/ExceptionService.swift:364`, `Services/AppealService.swift:45`, `Services/AppealService.swift:160`, `Services/FileService.swift:233`, `Services/FileService.swift:266`.
-  - Deferred carpool matching now scopes candidate search to each order’s site: `Services/CarpoolService.swift:359`.
-
-### 2) High — Inconsistent object-level authorization on mutable operations
+## 1) High — Least-privilege role boundaries diverge (overprivileged compliance reviewer)
 - Status: **Fixed**
 - Evidence:
-  - Lead mutate paths enforce ownership + site: `Services/LeadService.swift:112`, `Services/LeadService.swift:115`, `Services/LeadService.swift:118`, `Services/LeadService.swift:176`, `Services/LeadService.swift:179`, `Services/LeadService.swift:182`
-  - Appointment create/update/read paths enforce ownership + site: `Services/AppointmentService.swift:49`, `Services/AppointmentService.swift:52`, `Services/AppointmentService.swift:93`, `Services/AppointmentService.swift:96`, `Services/AppointmentService.swift:130`, `Services/AppointmentService.swift:141`, `Services/AppointmentService.swift:164`, `Services/AppointmentService.swift:183`
+  - Compliance reviewer is denied leads/inventory: `Models/Enums/PermissionAction.swift:63-64`
+  - UI section visibility remains permission-matrix gated: `App/MainSplitViewController.swift:63-71`, `App/MainSplitViewController.swift:143-147`
+- Conclusion: Original overprivilege defect is resolved.
 
-### 3) High — Appeal review actions do not enforce reviewer ownership
+## 2) High — Admin site context can become empty
 - Status: **Fixed**
 - Evidence:
-  - Ownership check enforced on approve/deny: `Services/AppealService.swift:147`, `Services/AppealService.swift:199`, `Services/AppealService.swift:301`, `Services/AppealService.swift:305`
+  - Login assigns site using centralized resolver: `App/LoginViewController.swift:84`, `App/LoginViewController.swift:111`
+  - Resolver fallback is non-empty (`"main"`): `App/ServiceContainer.swift:192-202`
+  - Lead creation rejects blank site values: `Services/LeadService.swift:43-45`
+  - Site-resolution fallback tests exist: `Tests/ServiceContainerTests.swift:28-67`
+- Conclusion: Empty-site path is closed.
 
-### 4) High — File access authorization module mismatch for appeal evidence
+## 3) High — Audit-log read path lacks explicit authorization control
 - Status: **Fixed**
 - Evidence:
-  - Entity-aware module routing + appeal object checks: `Services/FileService.swift:215`, `Services/FileService.swift:225`, `Services/FileService.swift:246`, `Services/FileService.swift:257`, `Services/FileService.swift:266`
+  - Read API guards enforce admin/reviewer roles: `Services/AuditService.swift:84-102`
+  - Audit log view uses guarded API: `App/Views/Admin/AuditLogViewController.swift:34-37`
+  - Authorization test coverage present: `Tests/AuditServiceTests.swift:144-179`
+- Conclusion: Audit read ACL issue is resolved.
 
-### 5) High — File format validation trusts declared type only
+## 4) Medium — Dashboard SLA alert counts are global, not site-scoped
 - Status: **Fixed**
 - Evidence:
-  - Magic-byte validation call + implementation: `Services/FileService.swift:61`, `Services/FileService.swift:62`, `Services/FileService.swift:280`, `Services/FileService.swift:287`, `Services/FileService.swift:290`, `Services/FileService.swift:294`
+  - Dashboard passes active site into SLA query: `App/ViewModels/DashboardViewModel.swift:32`
+  - SLA query is site-filtered for leads/appointments: `Services/SLAService.swift:59-70`
+- Conclusion: Count path is site-scoped.
 
-### 6) High — Background deferred matching/variance calculations not materially implemented
+## 5) Medium — RouteSegment entity persisted but unused in carpool matching logic
+- Status: **Fixed (resolved via removal/defer path)**
+- Evidence:
+  - Carpool matching implementation has no RouteSegment dependency and remains internally consistent with coordinate-based scoring: `Services/CarpoolService.swift:125-218`
+  - Current DI repository set excludes RouteSegment and CarpoolService wiring has no RouteSegment repo argument: `App/ServiceContainer.swift:11-34`, `App/ServiceContainer.swift:153-157`
+  - Current Core Data model entity list excludes RouteSegment: `Persistence/PersistenceController.swift:85-94`
+- Conclusion: Previous persisted-but-unused RouteSegment shape has been removed; no active stale RouteSegment persistence path remains in runtime model wiring.
+
+## 6) Medium — Critical authz risks have limited targeted test coverage
 - Status: **Fixed**
 - Evidence:
-  - Background wiring: `Services/BackgroundTaskService.swift:73`, `Services/BackgroundTaskService.swift:76`, `Services/BackgroundTaskService.swift:85`, `Services/BackgroundTaskService.swift:87`
-  - Deferred implementations: `Services/CarpoolService.swift:343`, `Services/InventoryService.swift:409`
+  - Staff check-in coverage (sales/clerk/reviewer): `Tests/ExceptionServiceTests.swift:138-154`
+  - Check-in no-scope denial coverage: `Tests/ExceptionServiceTests.swift:156-162`
+  - Audit-log ACL tests (deny for staff, allow for reviewer): `Tests/AuditServiceTests.swift:144-179`
+  - Admin site-resolution behavior coverage: `Tests/ServiceContainerTests.swift:28-67`
+- Conclusion: Previously listed coverage gaps are now addressed.
 
-### 7) Medium — Closed lead archival limited to `closed_won`
+## 7) Low — Internal comments reference non-existent docs (`design.md`, `questions.md`)
 - Status: **Fixed**
 - Evidence:
-  - Terminal statuses include `closedWon` + `invalid`: `Repositories/LeadRepository.swift:37`, `Persistence/CoreDataRepositories/CoreDataLeadRepository.swift:35`
+  - Prior example files now use generic/internal comments without those doc references:
+    - `Services/AuthService.swift:1-6`
+    - `Services/LeadService.swift:1-4`
+    - `App/BootstrapViewController.swift:1-5`
+    - `Services/Platform/BiometricService.swift:1-9`
+  - Fresh repository scan found no remaining `design.md` / `questions.md` string references.
+- Conclusion: Stale reference cleanup is complete.
 
-### 8) Medium — Multi-passenger trip merge behavior incomplete
-- Status: **Fixed**
-- Evidence:
-  - Offer stays active until seats exhausted: `Services/CarpoolService.swift:262`, `Services/CarpoolService.swift:264`
-  - Deferred matching supports iterative matching: `Services/CarpoolService.swift:343`
-
-### 9) Medium — Encryption fallback may persist plaintext on failure
-- Status: **Fixed**
-- Evidence:
-  - Save now hard-fails on encryption failure (no plaintext fallback): `Persistence/CoreDataRepositories/EncryptedCoreDataLeadRepository.swift:59`, `Persistence/CoreDataRepositories/EncryptedCoreDataLeadRepository.swift:62`, `Persistence/CoreDataRepositories/EncryptedCoreDataLeadRepository.swift:65`, `Persistence/CoreDataRepositories/EncryptedCoreDataLeadRepository.swift:80`
-
-### 10) Low — Lead list default may hide non-new leads
-- Status: **Fixed**
-- Evidence:
-  - No-filter path now loads all non-archived leads: `App/ViewModels/LeadViewModel.swift:16`, `App/ViewModels/LeadViewModel.swift:19`, `Services/LeadService.swift:275`, `Services/LeadService.swift:282`
-
-## Final Summary
-- Fixed: **10**
-- Partially fixed / still open: **0**
-- Not fixed: **0**
+## Final Recheck Conclusion
+- All 7 previously reported issues are currently resolved in static code evidence.
+- Static boundary note: build/runtime behavior is not asserted here because this is a static-only audit.

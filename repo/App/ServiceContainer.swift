@@ -17,7 +17,6 @@ final class ServiceContainer {
     let tagRepo: TagRepository
     let reminderRepo: ReminderRepository
     let poolOrderRepo: PoolOrderRepository
-    let routeSegmentRepo: RouteSegmentRepository
     let inventoryItemRepo: InventoryItemRepository
     let countTaskRepo: CountTaskRepository
     let countBatchRepo: CountBatchRepository
@@ -32,10 +31,15 @@ final class ServiceContainer {
     let businessHoursRepo: BusinessHoursConfigRepository
     let carpoolMatchRepo: CarpoolMatchRepository
     let operationLogRepo: OperationLogRepository
+    let roleRepo: RoleRepository
 
     // Platform services
     let keychainService: KeychainServiceProtocol
     let encryptionService: EncryptionServiceProtocol
+
+    /// The active site for the current session. Set after login from the user's first valid scope.
+    /// Admins bypass scope checks but still need a site for dashboard/query context.
+    var currentSite: String = ""
 
     // Services
     let auditService: AuditService
@@ -71,7 +75,6 @@ final class ServiceContainer {
             tagRepo = InMemoryTagRepository()
             reminderRepo = InMemoryReminderRepository()
             poolOrderRepo = InMemoryPoolOrderRepository()
-            routeSegmentRepo = InMemoryRouteSegmentRepository()
             inventoryItemRepo = InMemoryInventoryItemRepository()
             countTaskRepo = InMemoryCountTaskRepository()
             countBatchRepo = InMemoryCountBatchRepository()
@@ -86,6 +89,7 @@ final class ServiceContainer {
             businessHoursRepo = InMemoryBusinessHoursConfigRepository()
             carpoolMatchRepo = InMemoryCarpoolMatchRepository()
             operationLogRepo = InMemoryOperationLogRepository()
+            roleRepo = InMemoryRoleRepository()
         } else {
             // Production: real Keychain + AES encryption + 100% Core Data
             keychainService = KeychainService()
@@ -99,7 +103,6 @@ final class ServiceContainer {
             tagRepo = CoreDataTagRepository(context: ctx)
             reminderRepo = CoreDataReminderRepository(context: ctx)
             poolOrderRepo = CoreDataPoolOrderRepository(context: ctx)
-            routeSegmentRepo = CoreDataRouteSegmentRepository(context: ctx)
             inventoryItemRepo = CoreDataInventoryItemRepository(context: ctx)
             countTaskRepo = CoreDataCountTaskRepository(context: ctx)
             countBatchRepo = CoreDataCountBatchRepository(context: ctx)
@@ -114,6 +117,9 @@ final class ServiceContainer {
             businessHoursRepo = CoreDataBusinessHoursConfigRepository(context: ctx)
             carpoolMatchRepo = CoreDataCarpoolMatchRepository(context: ctx)
             operationLogRepo = CoreDataOperationLogRepository(context: ctx)
+            let coreDataRoleRepo = CoreDataRoleRepository(context: ctx)
+            roleRepo = coreDataRoleRepo
+            ServiceContainer.seedRolesIfNeeded(coreDataRoleRepo)
         }
 
         // Wire services
@@ -122,8 +128,8 @@ final class ServiceContainer {
         authService = AuthService(userRepo: userRepo, auditService: auditService, operationLogRepo: operationLogRepo)
         sessionService = SessionService(userRepo: userRepo)
         userManagementService = UserManagementService(
-            userRepo: userRepo, permissionService: permissionService, authService: authService,
-            auditService: auditService, operationLogRepo: operationLogRepo
+            userRepo: userRepo, roleRepo: roleRepo, permissionService: permissionService,
+            authService: authService, auditService: auditService, operationLogRepo: operationLogRepo
         )
         slaService = SLAService(businessHoursRepo: businessHoursRepo, leadRepo: leadRepo,
             appointmentRepo: appointmentRepo, auditService: auditService
@@ -137,15 +143,15 @@ final class ServiceContainer {
             slaService: slaService, auditService: auditService, operationLogRepo: operationLogRepo
         )
         reminderService = ReminderService(
-            reminderRepo: reminderRepo, permissionService: permissionService,
+            reminderRepo: reminderRepo, leadRepo: leadRepo, permissionService: permissionService,
             auditService: auditService, operationLogRepo: operationLogRepo
         )
         noteService = NoteService(
-            noteRepo: noteRepo, tagRepo: tagRepo, permissionService: permissionService,
+            noteRepo: noteRepo, tagRepo: tagRepo, leadRepo: leadRepo, permissionService: permissionService,
             auditService: auditService, slaService: slaService, operationLogRepo: operationLogRepo
         )
         carpoolService = CarpoolService(
-            poolOrderRepo: poolOrderRepo, routeSegmentRepo: routeSegmentRepo,
+            poolOrderRepo: poolOrderRepo,
             carpoolMatchRepo: carpoolMatchRepo, permissionService: permissionService,
             auditService: auditService, operationLogRepo: operationLogRepo
         )
@@ -177,5 +183,34 @@ final class ServiceContainer {
             fileService: fileService, exceptionService: exceptionService,
             auditService: auditService
         )
+    }
+
+    /// Returns the appropriate site string for the given user.
+    /// For users with personal scopes, uses the first valid scope's site.
+    /// For admins (who have no scopes), falls back to the first valid site found in the
+    /// system, then to "main" if the system has no scopes yet.
+    func resolvedSite(for user: User) -> String {
+        if let site = permissionScopeRepo.findByUserId(user.id)
+            .first(where: { $0.validTo > Date() })?.site {
+            return site
+        }
+        if let fallback = permissionScopeRepo.findAll()
+            .first(where: { $0.validTo > Date() })?.site {
+            return fallback
+        }
+        return "main"
+    }
+
+    private static func seedRolesIfNeeded(_ repo: RoleRepository) {
+        let existing = Set(repo.findAll().map { $0.name })
+        let definitions: [(UserRole, String)] = [
+            (.administrator, "Administrator"),
+            (.salesAssociate, "Sales Associate"),
+            (.inventoryClerk, "Inventory Clerk"),
+            (.complianceReviewer, "Compliance Reviewer"),
+        ]
+        for (name, displayName) in definitions where !existing.contains(name) {
+            try? repo.save(Role(id: UUID(), name: name, displayName: displayName))
+        }
     }
 }

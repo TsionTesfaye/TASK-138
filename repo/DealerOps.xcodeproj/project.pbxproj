@@ -33,7 +33,6 @@
 		3509786304010620844DB66D /* App/Views/Carpool/CarpoolListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D47754DDE9B175884B7B8195 /* App/Views/Carpool/CarpoolListViewController.swift */; };
 		35C66A220F5EB072AB0CE938 /* Services/Contracts/ServiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = D01B2B96237CDCC9767215DE /* Services/Contracts/ServiceError.swift */; };
 		391E0F84BB7E70BABF24B55D /* Models/Entities/CountBatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = A52CE330CBF03D705DA72284 /* Models/Entities/CountBatch.swift */; };
-		3B7C19897D0FBB7CB24DAA8A /* Models/Entities/RouteSegment.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E0D6A467CAC2D37468CCF79 /* Models/Entities/RouteSegment.swift */; };
 		3F9663FD326EA5C03CF941C3 /* Persistence/CoreDataRepositories/CoreDataInventoryItemRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9F82578499BED4F8BC83C8 /* Persistence/CoreDataRepositories/CoreDataInventoryItemRepository.swift */; };
 		40A18F750F565BEA4375D1C0 /* Models/Enums/PermissionAction.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4320EBEDB91550CF277F70B1 /* Models/Enums/PermissionAction.swift */; };
 		436F5D5D28770A3EEC152C7A /* App/ViewModels/InventoryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC3E3A2D8AF97FA7692063E9 /* App/ViewModels/InventoryViewModel.swift */; };
@@ -98,7 +97,6 @@
 		C23507EA7327CC04E8D69F0F /* Models/Entities/Variance.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8DCADFF73B5975F013EB5F5D /* Models/Entities/Variance.swift */; };
 		C2513BDFC1F3345A87B7ECE3 /* Services/NoteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13DFA1FC40C3FFD32A7C5C85 /* Services/NoteService.swift */; };
 		C40EB67EF375C96425C9C6CE /* Repositories/CarpoolMatchRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87C1166CE1C285093CB6FB3C /* Repositories/CarpoolMatchRepository.swift */; };
-		C4C1D84D2211ECF7968622A8 /* Repositories/RouteSegmentRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8C469800BDEACBC6F91A5CF /* Repositories/RouteSegmentRepository.swift */; };
 		C609F6F4FB33F00C0FC692A3 /* App/Views/Leads/CreateLeadViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75D12B55F24FEEA483BA8992 /* App/Views/Leads/CreateLeadViewController.swift */; };
 		CACC5E3D95DBD7A73964247A /* Models/Entities/Tag.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA1ECCCF1CC19EBD030BF8C9 /* Models/Entities/Tag.swift */; };
 		CAF805BBE235A6E1181332ED /* Models/Enums/UserRole.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8E47A8CDCE31F4E41695EB3 /* Models/Enums/UserRole.swift */; };
@@ -160,7 +158,6 @@
 		48C89432F58880404511B1DC /* App/Views/Admin/AdminPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/Views/Admin/AdminPanelViewController.swift; sourceTree = "<group>"; };
 		49BADBBDCBC27FAD4A112DE6 /* Services/Platform/NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/Platform/NotificationService.swift; sourceTree = "<group>"; };
 		4B9F82578499BED4F8BC83C8 /* Persistence/CoreDataRepositories/CoreDataInventoryItemRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Persistence/CoreDataRepositories/CoreDataInventoryItemRepository.swift; sourceTree = "<group>"; };
-		4E0D6A467CAC2D37468CCF79 /* Models/Entities/RouteSegment.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/Entities/RouteSegment.swift; sourceTree = "<group>"; };
 		509BA16EC8E304DDDF4FDC4C /* Services/BackgroundTaskService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/BackgroundTaskService.swift; sourceTree = "<group>"; };
 		50AB0F4F7E7FBA69E6511B38 /* App/Views/Leads/AppointmentListViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/Views/Leads/AppointmentListViewController.swift; sourceTree = "<group>"; };
 		52439C50343D319F017087B1 /* Services/FileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Services/FileService.swift; sourceTree = "<group>"; };
@@ -240,7 +237,6 @@
 		F1FC73E91A29F0051347D917 /* Repositories/UserRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories/UserRepository.swift; sourceTree = "<group>"; };
 		F3F08CDB4D65FF349F22DF24 /* Repositories/VarianceRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories/VarianceRepository.swift; sourceTree = "<group>"; };
 		F7A4EC81BFF191B2AD462D7B /* Models/Enums/AppealStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/Enums/AppealStatus.swift; sourceTree = "<group>"; };
-		F8C469800BDEACBC6F91A5CF /* Repositories/RouteSegmentRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories/RouteSegmentRepository.swift; sourceTree = "<group>"; };
 		F96F16E67D185B4188C08B86 /* Models/Entities/CheckIn.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/Entities/CheckIn.swift; sourceTree = "<group>"; };
 		F9C7E769DBA63C24E5AB322C /* App/Views/Shared/BaseTableViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/Views/Shared/BaseTableViewController.swift; sourceTree = "<group>"; };
 		F9D68404806EBF2353EF9A1B /* Repositories/CountBatchRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repositories/CountBatchRepository.swift; sourceTree = "<group>"; };
@@ -317,7 +313,6 @@
 				B7C6912F9E325879F0367DFC /* Models/Entities/PermissionScope.swift */,
 				54A9DDCED7B0E030E814BA9C /* Models/Entities/PoolOrder.swift */,
 				D589D5AC4F9D695653BF27BE /* Models/Entities/Reminder.swift */,
-				4E0D6A467CAC2D37468CCF79 /* Models/Entities/RouteSegment.swift */,
 				EA1ECCCF1CC19EBD030BF8C9 /* Models/Entities/Tag.swift */,
 				54DE797CBEAC8644BBB71B9F /* Models/Entities/User.swift */,
 				8DCADFF73B5975F013EB5F5D /* Models/Entities/Variance.swift */,
@@ -364,7 +359,6 @@
 				967A2780C15A39E92F1966F3 /* Repositories/PermissionScopeRepository.swift */,
 				7F38947DD4D7F2B4CE8157E8 /* Repositories/PoolOrderRepository.swift */,
 				DF9257EA5C4B196F155B0EF2 /* Repositories/ReminderRepository.swift */,
-				F8C469800BDEACBC6F91A5CF /* Repositories/RouteSegmentRepository.swift */,
 				6E3A97BCA8DA39B9AF430250 /* Repositories/TagRepository.swift */,
 				F1FC73E91A29F0051347D917 /* Repositories/UserRepository.swift */,
 				F3F08CDB4D65FF349F22DF24 /* Repositories/VarianceRepository.swift */,
@@ -503,7 +497,6 @@
 				9254AA40D16DBE6164919706 /* Models/Entities/PermissionScope.swift in Sources */,
 				3392B7CBD474A34374E3CC3E /* Models/Entities/PoolOrder.swift in Sources */,
 				CDCC281CB39DDD5DCA46D760 /* Models/Entities/Reminder.swift in Sources */,
-				3B7C19897D0FBB7CB24DAA8A /* Models/Entities/RouteSegment.swift in Sources */,
 				CACC5E3D95DBD7A73964247A /* Models/Entities/Tag.swift in Sources */,
 				60A0B2FCF17E08AB5A9DDF92 /* Models/Entities/User.swift in Sources */,
 				C23507EA7327CC04E8D69F0F /* Models/Entities/Variance.swift in Sources */,
@@ -550,7 +543,6 @@
 				DFC828F63BAF77C8E5E6A82F /* Repositories/PermissionScopeRepository.swift in Sources */,
 				1837CEBB1EAFCB9F8330F8F1 /* Repositories/PoolOrderRepository.swift in Sources */,
 				5377A6E5A817A5C704E695A9 /* Repositories/ReminderRepository.swift in Sources */,
-				C4C1D84D2211ECF7968622A8 /* Repositories/RouteSegmentRepository.swift in Sources */,
 				EDFC35ED3C00AD1EA4232E51 /* Repositories/TagRepository.swift in Sources */,
 				760053BACCD0B6EFBC0A8F34 /* Repositories/UserRepository.swift in Sources */,
 				026CAA5BDBCBE3475868592B /* Repositories/VarianceRepository.swift in Sources */,

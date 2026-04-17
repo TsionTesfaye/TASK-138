@@ -6,7 +6,6 @@ import Foundation
 import LocalAuthentication
 
 /// Real LocalAuthentication wrapper for FaceID/TouchID.
-/// design.md 4.1, questions.md Q4.
 final class BiometricService {
 
     /// Check if biometric authentication is available on this device.

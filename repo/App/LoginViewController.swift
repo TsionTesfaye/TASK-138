@@ -1,7 +1,6 @@
 import UIKit
 
 /// Login screen: authenticates via AuthService.
-/// design.md 4.1, 4.17, questions.md Q3-Q5.
 final class LoginViewController: UIViewController {
 
     private let container: ServiceContainer
@@ -82,6 +81,7 @@ final class LoginViewController: UIViewController {
         switch result {
         case .success(let user):
             container.sessionService.startSession(user: user)
+            container.currentSite = container.resolvedSite(for: user)
             updateBiometricToggle(for: user)
             if isReAuth {
                 dismiss(animated: true)
@@ -108,6 +108,7 @@ final class LoginViewController: UIViewController {
                     // Look up the persisted biometric user (survives app restart)
                     if let user = self.container.sessionService.biometricUser() {
                         self.container.sessionService.startSession(user: user)
+                        self.container.currentSite = self.container.resolvedSite(for: user)
                         if self.isReAuth {
                             self.dismiss(animated: true)
                         } else {

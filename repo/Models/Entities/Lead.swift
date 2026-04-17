@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.3
 struct Lead: Equatable {
     let id: UUID
     var siteId: String

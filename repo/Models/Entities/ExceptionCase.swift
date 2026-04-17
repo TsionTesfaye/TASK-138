@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.15
 struct ExceptionCase: Equatable {
     let id: UUID
     var siteId: String

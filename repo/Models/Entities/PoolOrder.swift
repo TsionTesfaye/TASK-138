@@ -1,6 +1,5 @@
 import Foundation
 
-/// design.md 3.8
 struct PoolOrder: Equatable {
     let id: UUID
     var siteId: String
