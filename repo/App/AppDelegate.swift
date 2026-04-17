@@ -15,6 +15,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Initialize DI container with Core Data persistence
         container = ServiceContainer(inMemory: false)
 
+        // Seed demo accounts when launched with -SeedDemoAccounts (QA / tester builds).
+        // Runs synchronously before determineRootViewController so the user count is
+        // already > 0 by the time we decide which screen to show — bootstrap is
+        // bypassed and the app goes straight to the login screen.
+        if ProcessInfo.processInfo.arguments.contains("-SeedDemoAccounts") {
+            let seeder = DebugSeeder(
+                userRepo: container.userRepo,
+                permissionScopeRepo: container.permissionScopeRepo,
+                authService: container.authService
+            )
+            seeder.seed()
+        }
+
         // Register background tasks (design.md 6)
         registerBackgroundTasks()
 

@@ -25,7 +25,7 @@ class BaseViewModel {
         state = newState
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            self.onStateChange?(self.state)
+            self.onStateChange?(newState)
         }
     }
 

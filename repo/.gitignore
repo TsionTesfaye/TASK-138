@@ -15,6 +15,10 @@ Package.resolved
 xcuserdata/
 *.xcuserstate
 *.xcuserdatad/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
 DerivedData/
 build/
 *.ipa
@@ -22,6 +26,7 @@ build/
 *.dSYM
 *.hmap
 *.xcarchive
+*.moved-aside
 
 # ---------- Compiled test binary ----------
 run_tests

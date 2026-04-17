@@ -1,0 +1,49 @@
+# Swift build artifacts
+.build/
+.swiftpm/
+Package.resolved
+
+# Xcode
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+*.xcuserstate
+*.xcarchive
+build/
+
+# Compiled test binary (produced by run_tests.sh)
+run_tests
+run_tests.dSYM/
+
+# macOS
+.DS_Store
+._*
+.AppleDouble
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Secrets
+.env
+.env.*
+*.pem
+*.p12
+*.mobileprovision
+
+# Logs / temp
+*.log
+.tmp/
+tmp/
+
+# Git
+.git/
+.gitignore
+
+# Claude
+.claude/
+CLAUDE.md
+CLAUDE.md.local
