@@ -76,7 +76,7 @@ Demo site for permission-scoped features (Leads, Inventory, Carpool, Compliance)
 | Administrator | `admin` | `Admin12345678` | All sites (bypasses scope) |
 | Sales Associate | `sales1` | `Sales12345678` | `demo-lot` — leads, carpool |
 | Inventory Clerk | `clerk1` | `Clerk12345678` | `demo-lot` — inventory |
-| Compliance Reviewer | `reviewer1` | `Reviewer12345` | `demo-lot` — compliance, leads |
+| Compliance Reviewer | `reviewer1` | `Reviewer12345` | `demo-lot` — exceptions, appeals, checkin |
 
 > **Passwords meet the app policy**: ≥ 12 characters, at least one uppercase letter, one lowercase letter, and one digit.
 
@@ -180,7 +180,7 @@ Resources/              Info.plist, LaunchScreen, entitlements
 - PBKDF2-HMAC-SHA256 password hashing (100k iterations)
 - AES-256-CBC field encryption (phone, customerName, consentNotes)
 - Per-record Keychain key storage
-- Role-based access control (4 roles × 5 modules)
+- Role-based access control (4 roles × 7 modules)
 - Permission scope validation (site + function + date range)
 - Site/lot data isolation: all queries are scoped to the authenticated user's site
 - 5-minute session timeout with forced re-authentication
@@ -194,6 +194,6 @@ Tests covering:
 - Authentication (18), Session (6), Permissions (14), User Management (8)
 - Leads (13), Appointments (17), Notes/Tags (15), Reminders (13)
 - SLA/Business Hours (5), Inventory/Variance (13)
-- Carpool (10), Exceptions (6), Appeals (10), Audit (8)
+- Carpool (21), Exceptions (6), Appeals (10), Audit (8)
 - State Machines (4), Core Data Integration (23)
-- Encryption (6), FileService (9), BackgroundTasks (5)
+- Encryption (6), FileService (13), BackgroundTasks (6)

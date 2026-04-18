@@ -45,6 +45,8 @@ final class InventoryServiceTests {
         testApproveVarianceNonAdminDenied()
         testExecuteAdjustmentUpdatesQty()
         testCountEntryViaService()
+        testBelowThresholdVarianceAutoAdjusted()
+        testAboveThresholdVarianceRequiresApproval()
     }
 
     func testScannerLookupValid() {
@@ -264,5 +266,49 @@ final class InventoryServiceTests {
         TestHelpers.assert(entry.countedQty == 5)
         TestHelpers.assert(entry.batchId == batch.id)
         print("  PASS: testCountEntryViaService")
+    }
+
+    func testBelowThresholdVarianceAutoAdjusted() {
+        // expectedQty=100, countedQty=102 → diff=2, threshold=max(3,2)=3 → 2<=3 → requiresApproval=false
+        // Auto-processing happens inline during computeVariances — no manual processVariance call needed
+        let (service, itemRepo, _, adjRepo, scopeRepo) = makeServices()
+        let clerk = TestHelpers.makeInventoryClerk()
+        grantScope(clerk, scopeRepo: scopeRepo)
+        let item = InventoryItem(id: UUID(), siteId: testSite, identifier: "F1", expectedQty: 100, location: "Lot A", custodian: "Bob")
+        try! itemRepo.save(item)
+
+        let task = TestHelpers.assertSuccess(service.createCountTask(by: clerk, site: testSite, assignedTo: clerk.id, operationId: UUID()))!
+        let batch = TestHelpers.assertSuccess(service.createCountBatch(by: clerk, site: testSite, taskId: task.id, operationId: UUID()))!
+        _ = service.recordCountEntry(by: clerk, site: testSite, batchId: batch.id, itemId: item.id, countedQty: 102, countedLocation: "Lot A", countedCustodian: "Bob", operationId: UUID())
+
+        let variances = TestHelpers.assertSuccess(service.computeVariances(by: clerk, site: testSite, forBatchId: batch.id))!
+        let v = variances.first { $0.type == .surplus }!
+        TestHelpers.assert(!v.requiresApproval, "Should be below threshold")
+        TestHelpers.assert(v.approved, "Below-threshold variance should be auto-approved during computeVariances")
+        TestHelpers.assert(itemRepo.findById(item.id)!.expectedQty == 102, "Item qty should be updated to counted qty during computeVariances")
+        let autoOrder = adjRepo.findByVarianceId(v.id)
+        TestHelpers.assert(autoOrder?.status == .executed, "Auto-adjustment order should be created with executed status")
+        print("  PASS: testBelowThresholdVarianceAutoAdjusted")
+    }
+
+    func testAboveThresholdVarianceRequiresApproval() {
+        // expectedQty=10, countedQty=15 → diff=5, threshold=max(3,0.2)=3 → 5>3 → requiresApproval=true
+        let (service, itemRepo, _, _, scopeRepo) = makeServices()
+        let clerk = TestHelpers.makeInventoryClerk()
+        grantScope(clerk, scopeRepo: scopeRepo)
+        let item = InventoryItem(id: UUID(), siteId: testSite, identifier: "F2", expectedQty: 10, location: "Lot A", custodian: "Bob")
+        try! itemRepo.save(item)
+
+        let task = TestHelpers.assertSuccess(service.createCountTask(by: clerk, site: testSite, assignedTo: clerk.id, operationId: UUID()))!
+        let batch = TestHelpers.assertSuccess(service.createCountBatch(by: clerk, site: testSite, taskId: task.id, operationId: UUID()))!
+        _ = service.recordCountEntry(by: clerk, site: testSite, batchId: batch.id, itemId: item.id, countedQty: 15, countedLocation: "Lot A", countedCustodian: "Bob", operationId: UUID())
+
+        let variances = TestHelpers.assertSuccess(service.computeVariances(by: clerk, site: testSite, forBatchId: batch.id))!
+        let v = variances.first { $0.type == .surplus }!
+        TestHelpers.assert(v.requiresApproval, "Should be above threshold")
+
+        let result = service.processVariance(by: clerk, site: testSite, varianceId: v.id, operationId: UUID())
+        TestHelpers.assertFailure(result, code: "INV_APPROVAL_REQ")
+        print("  PASS: testAboveThresholdVarianceRequiresApproval")
     }
 }

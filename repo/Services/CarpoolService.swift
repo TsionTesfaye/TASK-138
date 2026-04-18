@@ -5,6 +5,7 @@ final class CarpoolService {
 
     private let poolOrderRepo: PoolOrderRepository
     private let carpoolMatchRepo: CarpoolMatchRepository
+    private let routeSegmentRepo: RouteSegmentRepository
     private let permissionService: PermissionService
     private let auditService: AuditService
     private let operationLogRepo: OperationLogRepository
@@ -15,12 +16,14 @@ final class CarpoolService {
     init(
         poolOrderRepo: PoolOrderRepository,
         carpoolMatchRepo: CarpoolMatchRepository,
+        routeSegmentRepo: RouteSegmentRepository,
         permissionService: PermissionService,
         auditService: AuditService,
         operationLogRepo: OperationLogRepository
     ) {
         self.poolOrderRepo = poolOrderRepo
         self.carpoolMatchRepo = carpoolMatchRepo
+        self.routeSegmentRepo = routeSegmentRepo
         self.permissionService = permissionService
         self.auditService = auditService
         self.operationLogRepo = operationLogRepo
@@ -123,7 +126,7 @@ final class CarpoolService {
     // MARK: - Compute Matches
 
     /// Deterministic offline matching using Haversine distance.
-    /// Hard filters: time overlap ≥ 20 min, seat availability, pickup radius.
+    /// Hard filters: time overlap ≥ 15 min, seat availability, pickup radius.
     /// Detour threshold: min(10% of route, 1.5 miles)
     /// Returns scored matches sorted by score descending.
     func computeMatches(by user: User, site: String, for orderId: UUID) -> ServiceResult<[CarpoolMatch]> {
@@ -209,6 +212,17 @@ final class CarpoolService {
             )
 
             do { try carpoolMatchRepo.save(match) } catch { ServiceLogger.persistenceError(ServiceLogger.carpool, operation: "save_match", error: error) }
+
+            let segment = RouteSegment(
+                id: UUID(), matchId: match.id,
+                originLat: order.originLat, originLng: order.originLng,
+                destinationLat: order.destinationLat, destinationLng: order.destinationLng,
+                distanceMiles: orderRouteDistance,
+                estimatedDurationMinutes: orderRouteDistance / 30.0 * 60.0,
+                createdAt: Date()
+            )
+            do { try routeSegmentRepo.save(segment) } catch { ServiceLogger.persistenceError(ServiceLogger.carpool, operation: "save_route_segment", error: error) }
+
             matches.append(match)
         }
 
@@ -306,6 +320,10 @@ final class CarpoolService {
 
         guard var order = poolOrderRepo.findById(orderId, siteId: site) else {
             return .failure(.entityNotFound)
+        }
+
+        guard order.createdBy == user.id || user.role == .administrator else {
+            return .failure(.permissionDenied)
         }
 
         guard order.status.canTransition(to: .completed) else {
@@ -420,6 +438,17 @@ final class CarpoolService {
                 )
 
                 do { try carpoolMatchRepo.save(match) } catch { ServiceLogger.persistenceError(ServiceLogger.carpool, operation: "save_deferred_match", error: error) }
+
+                let segment = RouteSegment(
+                    id: UUID(), matchId: match.id,
+                    originLat: order.originLat, originLng: order.originLng,
+                    destinationLat: order.destinationLat, destinationLng: order.destinationLng,
+                    distanceMiles: orderRouteDistance,
+                    estimatedDurationMinutes: orderRouteDistance / 30.0 * 60.0,
+                    createdAt: Date()
+                )
+                do { try routeSegmentRepo.save(segment) } catch { ServiceLogger.persistenceError(ServiceLogger.carpool, operation: "save_deferred_route_segment", error: error) }
+
                 totalMatches += 1
             }
 
@@ -461,9 +490,11 @@ final class CarpoolService {
         ) {
             return .failure(err)
         }
-        // Verify the order belongs to this site before returning its matches
-        guard poolOrderRepo.findById(orderId, siteId: site) != nil else {
+        guard let order = poolOrderRepo.findById(orderId, siteId: site) else {
             return .failure(.entityNotFound)
+        }
+        guard order.createdBy == user.id || user.role == .administrator else {
+            return .failure(.permissionDenied)
         }
         return .success(carpoolMatchRepo.findByRequestOrderId(orderId))
     }

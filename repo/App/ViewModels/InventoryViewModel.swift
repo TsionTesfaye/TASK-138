@@ -84,6 +84,11 @@ final class InventoryViewModel: BaseViewModel {
         return container.inventoryService.approveVariance(by: user, site: site, varianceId: varianceId, operationId: UUID())
     }
 
+    func processVariance(varianceId: UUID) -> ServiceResult<AdjustmentOrder> {
+        guard let user = currentUser() else { return .failure(.sessionExpired) }
+        return container.inventoryService.processVariance(by: user, site: site, varianceId: varianceId, operationId: UUID())
+    }
+
     func executeAdjustment(orderId: UUID) -> ServiceResult<AdjustmentOrder> {
         guard let user = currentUser() else { return .failure(.sessionExpired) }
         return container.inventoryService.executeAdjustmentOrder(by: user, site: site, orderId: orderId, operationId: UUID())

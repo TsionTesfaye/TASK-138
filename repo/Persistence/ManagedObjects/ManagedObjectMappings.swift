@@ -491,6 +491,30 @@ extension CarpoolMatch {
     }
 }
 
+// MARK: - RouteSegment Mapping
+
+extension RouteSegment {
+    init(mo: NSManagedObject) {
+        self.init(
+            id: mo.uuid("id"),
+            matchId: mo.uuid("matchId"),
+            originLat: mo.double("originLat"), originLng: mo.double("originLng"),
+            destinationLat: mo.double("destinationLat"), destinationLng: mo.double("destinationLng"),
+            distanceMiles: mo.double("distanceMiles"),
+            estimatedDurationMinutes: mo.double("estimatedDurationMinutes"),
+            createdAt: mo.date("createdAt")
+        )
+    }
+    func apply(to mo: NSManagedObject) {
+        mo.setValue(id, forKey: "id"); mo.setValue(matchId, forKey: "matchId")
+        mo.setValue(originLat, forKey: "originLat"); mo.setValue(originLng, forKey: "originLng")
+        mo.setValue(destinationLat, forKey: "destinationLat"); mo.setValue(destinationLng, forKey: "destinationLng")
+        mo.setValue(distanceMiles, forKey: "distanceMiles")
+        mo.setValue(estimatedDurationMinutes, forKey: "estimatedDurationMinutes")
+        mo.setValue(createdAt, forKey: "createdAt")
+    }
+}
+
 // MARK: - PermissionScope Mapping
 
 extension PermissionScope {

@@ -259,8 +259,14 @@ extension ExceptionDetailViewController: UIImagePickerControllerDelegate, UINavi
         var fileType: EvidenceFileType = .jpg
 
         if let image = info[.originalImage] as? UIImage {
-            fileData = image.jpegData(compressionQuality: 0.8)
-            fileType = .jpg
+            let uti = info[.mediaType] as? String
+            if uti == "public.png" {
+                fileData = image.pngData()
+                fileType = .png
+            } else {
+                fileData = image.jpegData(compressionQuality: 0.8)
+                fileType = .jpg
+            }
         } else if let videoURL = info[.mediaURL] as? URL {
             fileData = try? Data(contentsOf: videoURL)
             fileType = .mp4

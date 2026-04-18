@@ -30,6 +30,7 @@ final class ServiceContainer {
     let auditLogRepo: AuditLogRepository
     let businessHoursRepo: BusinessHoursConfigRepository
     let carpoolMatchRepo: CarpoolMatchRepository
+    let routeSegmentRepo: RouteSegmentRepository
     let operationLogRepo: OperationLogRepository
     let roleRepo: RoleRepository
 
@@ -88,6 +89,7 @@ final class ServiceContainer {
             auditLogRepo = InMemoryAuditLogRepository()
             businessHoursRepo = InMemoryBusinessHoursConfigRepository()
             carpoolMatchRepo = InMemoryCarpoolMatchRepository()
+            routeSegmentRepo = InMemoryRouteSegmentRepository()
             operationLogRepo = InMemoryOperationLogRepository()
             roleRepo = InMemoryRoleRepository()
         } else {
@@ -116,6 +118,7 @@ final class ServiceContainer {
             auditLogRepo = CoreDataAuditLogRepository(context: ctx)
             businessHoursRepo = CoreDataBusinessHoursConfigRepository(context: ctx)
             carpoolMatchRepo = CoreDataCarpoolMatchRepository(context: ctx)
+            routeSegmentRepo = CoreDataRouteSegmentRepository(context: ctx)
             operationLogRepo = CoreDataOperationLogRepository(context: ctx)
             let coreDataRoleRepo = CoreDataRoleRepository(context: ctx)
             roleRepo = coreDataRoleRepo
@@ -152,7 +155,9 @@ final class ServiceContainer {
         )
         carpoolService = CarpoolService(
             poolOrderRepo: poolOrderRepo,
-            carpoolMatchRepo: carpoolMatchRepo, permissionService: permissionService,
+            carpoolMatchRepo: carpoolMatchRepo,
+            routeSegmentRepo: routeSegmentRepo,
+            permissionService: permissionService,
             auditService: auditService, operationLogRepo: operationLogRepo
         )
         inventoryService = InventoryService(
@@ -174,8 +179,8 @@ final class ServiceContainer {
         )
         fileService = FileService(
             evidenceFileRepo: evidenceFileRepo, appealRepo: appealRepo,
-            permissionService: permissionService, auditService: auditService,
-            operationLogRepo: operationLogRepo
+            leadRepo: leadRepo, permissionService: permissionService,
+            auditService: auditService, operationLogRepo: operationLogRepo
         )
         backgroundTaskService = BackgroundTaskService(
             slaService: slaService, leadService: leadService,

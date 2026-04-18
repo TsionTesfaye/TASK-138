@@ -80,6 +80,7 @@ final class PersistenceController {
         let auditLogEntity = buildAuditLogEntity()
         let businessHoursEntity = buildBusinessHoursConfigEntity()
         let carpoolMatchEntity = buildCarpoolMatchEntity()
+        let routeSegmentEntity = buildRouteSegmentEntity()
         let operationLogEntity = buildOperationLogEntity()
 
         model.entities = [
@@ -90,7 +91,7 @@ final class PersistenceController {
             varianceEntity, adjustmentOrderEntity,
             exceptionCaseEntity, checkInEntity, appealEntity,
             evidenceFileEntity, auditLogEntity,
-            businessHoursEntity, carpoolMatchEntity, operationLogEntity
+            businessHoursEntity, carpoolMatchEntity, routeSegmentEntity, operationLogEntity
         ]
 
         return model
@@ -466,6 +467,24 @@ final class PersistenceController {
             attr("detourMiles", .doubleAttributeType),
             attr("timeOverlapMinutes", .doubleAttributeType),
             attr("accepted", .booleanAttributeType, defaultValue: false),
+            attr("createdAt", .dateAttributeType),
+        ]
+        return e
+    }
+
+    private static func buildRouteSegmentEntity() -> NSEntityDescription {
+        let e = NSEntityDescription()
+        e.name = "CDRouteSegment"
+        e.managedObjectClassName = "CDRouteSegment"
+        e.properties = [
+            attr("id", .UUIDAttributeType),
+            attr("matchId", .UUIDAttributeType),
+            attr("originLat", .doubleAttributeType),
+            attr("originLng", .doubleAttributeType),
+            attr("destinationLat", .doubleAttributeType),
+            attr("destinationLng", .doubleAttributeType),
+            attr("distanceMiles", .doubleAttributeType),
+            attr("estimatedDurationMinutes", .doubleAttributeType),
             attr("createdAt", .dateAttributeType),
         ]
         return e

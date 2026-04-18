@@ -94,11 +94,12 @@ final class AppointmentService {
         }
         guard appointment.siteId == site else { return .failure(.permissionDenied) }
 
-        // Object-level: verify ownership of parent lead
-        if let lead = leadRepo.findById(appointment.leadId) {
-            if case .failure(let err) = enforceLeadOwnership(lead, user: user) {
-                return .failure(err)
-            }
+        // Object-level: parent lead must exist and actor must own it
+        guard let lead = leadRepo.findById(appointment.leadId) else {
+            return .failure(.entityNotFound)
+        }
+        if case .failure(let err) = enforceLeadOwnership(lead, user: user) {
+            return .failure(err)
         }
 
         // State machine validation
@@ -161,11 +162,12 @@ final class AppointmentService {
             return .success(nil)
         }
         guard appointment.siteId == site else { return .failure(.permissionDenied) }
-        // Object-level: verify ownership of parent lead
-        if let lead = leadRepo.findById(appointment.leadId) {
-            if case .failure(let err) = enforceLeadOwnership(lead, user: user) {
-                return .failure(err)
-            }
+        // Object-level: parent lead must exist and actor must own it
+        guard let lead = leadRepo.findById(appointment.leadId) else {
+            return .failure(.entityNotFound)
+        }
+        if case .failure(let err) = enforceLeadOwnership(lead, user: user) {
+            return .failure(err)
         }
         return .success(appointment)
     }
@@ -177,12 +179,13 @@ final class AppointmentService {
         ) {
             return .failure(err)
         }
-        // Object-level: verify ownership of parent lead before returning its appointments
-        if let lead = leadRepo.findById(leadId) {
-            guard lead.siteId == site else { return .failure(.permissionDenied) }
-            if case .failure(let err) = enforceLeadOwnership(lead, user: user) {
-                return .failure(err)
-            }
+        // Object-level: parent lead must exist, belong to site, and actor must own it
+        guard let lead = leadRepo.findById(leadId) else {
+            return .failure(.entityNotFound)
+        }
+        guard lead.siteId == site else { return .failure(.permissionDenied) }
+        if case .failure(let err) = enforceLeadOwnership(lead, user: user) {
+            return .failure(err)
         }
         return .success(appointmentRepo.findByLeadId(leadId).filter { $0.siteId == site })
     }

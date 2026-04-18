@@ -5,19 +5,31 @@ final class CarpoolServiceTests {
 
     private let testSite = "lot-a"
 
-    private func makeService() -> (CarpoolService, InMemoryPoolOrderRepository, InMemoryCarpoolMatchRepository) {
+    private func makeService() -> (CarpoolService, InMemoryPoolOrderRepository, InMemoryCarpoolMatchRepository, InMemoryRouteSegmentRepository, InMemoryPermissionScopeRepository) {
         let poolRepo = InMemoryPoolOrderRepository()
         let matchRepo = InMemoryCarpoolMatchRepository()
-        let permService = PermissionService(permissionScopeRepo: InMemoryPermissionScopeRepository())
+        let segmentRepo = InMemoryRouteSegmentRepository()
+        let scopeRepo = InMemoryPermissionScopeRepository()
+        let permService = PermissionService(permissionScopeRepo: scopeRepo)
         let auditService = AuditService(auditLogRepo: InMemoryAuditLogRepository())
         let opLogRepo = InMemoryOperationLogRepository()
 
         let service = CarpoolService(
             poolOrderRepo: poolRepo,
-            carpoolMatchRepo: matchRepo, permissionService: permService,
+            carpoolMatchRepo: matchRepo,
+            routeSegmentRepo: segmentRepo,
+            permissionService: permService,
             auditService: auditService, operationLogRepo: opLogRepo
         )
-        return (service, poolRepo, matchRepo)
+        return (service, poolRepo, matchRepo, segmentRepo, scopeRepo)
+    }
+
+    private func grantCarpoolScope(user: User, scopeRepo: InMemoryPermissionScopeRepository) {
+        let scope = PermissionScope(
+            id: UUID(), userId: user.id, site: testSite, functionKey: "carpool",
+            validFrom: Date().addingTimeInterval(-3600), validTo: Date().addingTimeInterval(3600)
+        )
+        try! scopeRepo.save(scope)
     }
 
     func runAll() {
@@ -35,6 +47,14 @@ final class CarpoolServiceTests {
         testCrossSiteOrderLookupDenied()
         testCrossSiteFindAllIsolated()
         testCrossSiteMatchIsolated()
+        testOwnerCanCompleteOrder()
+        testAdminCanCompleteOrder()
+        testNonOwnerCannotCompleteOrder()
+        testOwnerCanFindMatches()
+        testAdminCanFindMatches()
+        testNonOwnerCannotFindMatches()
+        testMatchGenerationPersistsRouteSegments()
+        testLoadMatchRetrievesPersistedSegments()
     }
 
     func testHaversineDistance() {
@@ -46,7 +66,7 @@ final class CarpoolServiceTests {
     }
 
     func testCreatePoolOrder() {
-        let (service, repo, _) = makeService()
+        let (service, repo, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let input = CarpoolService.CreatePoolOrderInput(
             originLat: 37.7749, originLng: -122.4194,
@@ -62,7 +82,7 @@ final class CarpoolServiceTests {
     }
 
     func testActivateOrder() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let order = createAndActivateOrder(service: service, user: admin)
         TestHelpers.assert(order.status == .active)
@@ -70,7 +90,7 @@ final class CarpoolServiceTests {
     }
 
     func testMatchWithinRadius() {
-        let (service, poolRepo, _) = makeService()
+        let (service, poolRepo, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
 
         let now = Date()
@@ -94,7 +114,7 @@ final class CarpoolServiceTests {
     }
 
     func testMatchRejectsOutsideRadius() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let now = Date()
 
@@ -118,7 +138,7 @@ final class CarpoolServiceTests {
     }
 
     func testMatchRequires15MinOverlap() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let now = Date()
 
@@ -143,7 +163,7 @@ final class CarpoolServiceTests {
     }
 
     func testAcceptMatchLocksSeat() {
-        let (service, poolRepo, _) = makeService()
+        let (service, poolRepo, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let now = Date()
 
@@ -176,7 +196,7 @@ final class CarpoolServiceTests {
     }
 
     func testAcceptMatchNoSeats() {
-        let (service, poolRepo, matchRepo) = makeService()
+        let (service, poolRepo, matchRepo, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
 
         let requestOrder = PoolOrder(
@@ -208,7 +228,7 @@ final class CarpoolServiceTests {
     }
 
     func testExpireStaleOrders() {
-        let (service, poolRepo, _) = makeService()
+        let (service, poolRepo, _, _, _) = makeService()
         let pastOrder = PoolOrder(
             id: UUID(), siteId: testSite, originLat: 37.77, originLng: -122.41,
             destinationLat: 37.80, destinationLng: -122.27,
@@ -242,7 +262,7 @@ final class CarpoolServiceTests {
     // MARK: - Cross-Site Isolation Tests
 
     func testCrossSiteOrderLookupDenied() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let order = createAndActivateOrder(service: service, user: admin)
 
@@ -254,7 +274,7 @@ final class CarpoolServiceTests {
     }
 
     func testCrossSiteFindAllIsolated() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
 
         // Create order on lot-a
@@ -268,7 +288,7 @@ final class CarpoolServiceTests {
     }
 
     func testCrossSiteMatchIsolated() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let now = Date()
 
@@ -282,6 +302,177 @@ final class CarpoolServiceTests {
         let result = service.computeMatches(by: admin, site: "lot-b", for: order1.id)
         TestHelpers.assertFailure(result, code: "ENTITY_NOT_FOUND")
         print("  PASS: testCrossSiteMatchIsolated")
+    }
+
+    // MARK: - Object-Level Auth: completeOrder
+
+    func testOwnerCanCompleteOrder() {
+        let (service, poolRepo, _, _, scopeRepo) = makeService()
+        let owner = TestHelpers.makeSalesAssociate()
+        grantCarpoolScope(user: owner, scopeRepo: scopeRepo)
+        let order = PoolOrder(
+            id: UUID(), siteId: testSite, originLat: 37.77, originLng: -122.41,
+            destinationLat: 37.80, destinationLng: -122.27,
+            startTime: Date(), endTime: Date().addingTimeInterval(3600),
+            seatsAvailable: 2, vehicleType: "Car", createdBy: owner.id, status: .matched
+        )
+        try! poolRepo.save(order)
+        let result = service.completeOrder(by: owner, site: testSite, orderId: order.id, operationId: UUID())
+        let completed = TestHelpers.assertSuccess(result)!
+        TestHelpers.assert(completed.status == .completed, "Owner should be able to complete their order")
+        print("  PASS: testOwnerCanCompleteOrder")
+    }
+
+    func testAdminCanCompleteOrder() {
+        let (service, poolRepo, _, _, _) = makeService()
+        let owner = TestHelpers.makeSalesAssociate()
+        let admin = TestHelpers.makeAdmin()
+        let order = PoolOrder(
+            id: UUID(), siteId: testSite, originLat: 37.77, originLng: -122.41,
+            destinationLat: 37.80, destinationLng: -122.27,
+            startTime: Date(), endTime: Date().addingTimeInterval(3600),
+            seatsAvailable: 2, vehicleType: "Car", createdBy: owner.id, status: .matched
+        )
+        try! poolRepo.save(order)
+        let result = service.completeOrder(by: admin, site: testSite, orderId: order.id, operationId: UUID())
+        let completed = TestHelpers.assertSuccess(result)!
+        TestHelpers.assert(completed.status == .completed, "Admin should be able to complete any order")
+        print("  PASS: testAdminCanCompleteOrder")
+    }
+
+    func testNonOwnerCannotCompleteOrder() {
+        let (service, poolRepo, _, _, scopeRepo) = makeService()
+        let owner = TestHelpers.makeSalesAssociate(username: "owner")
+        let nonOwner = TestHelpers.makeSalesAssociate(username: "other")
+        grantCarpoolScope(user: nonOwner, scopeRepo: scopeRepo)
+        let order = PoolOrder(
+            id: UUID(), siteId: testSite, originLat: 37.77, originLng: -122.41,
+            destinationLat: 37.80, destinationLng: -122.27,
+            startTime: Date(), endTime: Date().addingTimeInterval(3600),
+            seatsAvailable: 2, vehicleType: "Car", createdBy: owner.id, status: .matched
+        )
+        try! poolRepo.save(order)
+        let result = service.completeOrder(by: nonOwner, site: testSite, orderId: order.id, operationId: UUID())
+        TestHelpers.assertFailure(result, code: "PERM_DENIED")
+        print("  PASS: testNonOwnerCannotCompleteOrder")
+    }
+
+    // MARK: - Object-Level Auth: findMatchesByOrderId
+
+    func testOwnerCanFindMatches() {
+        let (service, poolRepo, _, _, scopeRepo) = makeService()
+        let owner = TestHelpers.makeSalesAssociate()
+        grantCarpoolScope(user: owner, scopeRepo: scopeRepo)
+        let order = PoolOrder(
+            id: UUID(), siteId: testSite, originLat: 37.77, originLng: -122.41,
+            destinationLat: 37.80, destinationLng: -122.27,
+            startTime: Date(), endTime: Date().addingTimeInterval(3600),
+            seatsAvailable: 2, vehicleType: "Car", createdBy: owner.id, status: .active
+        )
+        try! poolRepo.save(order)
+        let result = service.findMatchesByOrderId(by: owner, site: testSite, order.id)
+        _ = TestHelpers.assertSuccess(result)
+        print("  PASS: testOwnerCanFindMatches")
+    }
+
+    func testAdminCanFindMatches() {
+        let (service, poolRepo, _, _, _) = makeService()
+        let owner = TestHelpers.makeSalesAssociate()
+        let admin = TestHelpers.makeAdmin()
+        let order = PoolOrder(
+            id: UUID(), siteId: testSite, originLat: 37.77, originLng: -122.41,
+            destinationLat: 37.80, destinationLng: -122.27,
+            startTime: Date(), endTime: Date().addingTimeInterval(3600),
+            seatsAvailable: 2, vehicleType: "Car", createdBy: owner.id, status: .active
+        )
+        try! poolRepo.save(order)
+        let result = service.findMatchesByOrderId(by: admin, site: testSite, order.id)
+        _ = TestHelpers.assertSuccess(result)
+        print("  PASS: testAdminCanFindMatches")
+    }
+
+    func testNonOwnerCannotFindMatches() {
+        let (service, poolRepo, _, _, scopeRepo) = makeService()
+        let owner = TestHelpers.makeSalesAssociate(username: "owner")
+        let nonOwner = TestHelpers.makeSalesAssociate(username: "other")
+        grantCarpoolScope(user: nonOwner, scopeRepo: scopeRepo)
+        let order = PoolOrder(
+            id: UUID(), siteId: testSite, originLat: 37.77, originLng: -122.41,
+            destinationLat: 37.80, destinationLng: -122.27,
+            startTime: Date(), endTime: Date().addingTimeInterval(3600),
+            seatsAvailable: 2, vehicleType: "Car", createdBy: owner.id, status: .active
+        )
+        try! poolRepo.save(order)
+        let result = service.findMatchesByOrderId(by: nonOwner, site: testSite, order.id)
+        TestHelpers.assertFailure(result, code: "PERM_DENIED")
+        print("  PASS: testNonOwnerCannotFindMatches")
+    }
+
+    // MARK: - RouteSegment Persistence
+
+    func testMatchGenerationPersistsRouteSegments() {
+        let (service, _, _, segmentRepo, _) = makeService()
+        let admin = TestHelpers.makeAdmin()
+        let now = Date()
+
+        let order1 = createActiveOrder(service: service, user: admin,
+            originLat: 37.7749, originLng: -122.4194,
+            destLat: 37.80, destLng: -122.27,
+            start: now, end: now.addingTimeInterval(3600))
+
+        let input2 = CarpoolService.CreatePoolOrderInput(
+            originLat: 37.7750, originLng: -122.4195,
+            destinationLat: 37.8044, destinationLng: -122.2712,
+            startTime: now, endTime: now.addingTimeInterval(3600),
+            seatsAvailable: 2, vehicleType: "SUV"
+        )
+        let o2 = TestHelpers.assertSuccess(service.createPoolOrder(by: admin, site: testSite, input: input2, operationId: UUID()))!
+        _ = service.activateOrder(by: admin, site: testSite, orderId: o2.id, operationId: UUID())
+
+        let matches = TestHelpers.assertSuccess(service.computeMatches(by: admin, site: testSite, for: order1.id))!
+        guard !matches.isEmpty else {
+            print("  SKIP: testMatchGenerationPersistsRouteSegments (no matches found)")
+            return
+        }
+
+        for match in matches {
+            let segments = segmentRepo.findByMatchId(match.id)
+            TestHelpers.assert(!segments.isEmpty, "RouteSegment must be persisted for each generated match")
+            TestHelpers.assert(segments[0].distanceMiles > 0, "Persisted segment must have positive distance")
+        }
+        print("  PASS: testMatchGenerationPersistsRouteSegments")
+    }
+
+    func testLoadMatchRetrievesPersistedSegments() {
+        let (service, _, _, segmentRepo, _) = makeService()
+        let admin = TestHelpers.makeAdmin()
+        let now = Date()
+
+        let order1 = createActiveOrder(service: service, user: admin,
+            originLat: 37.7749, originLng: -122.4194,
+            destLat: 37.80, destLng: -122.27,
+            start: now, end: now.addingTimeInterval(3600))
+
+        let input2 = CarpoolService.CreatePoolOrderInput(
+            originLat: 37.7750, originLng: -122.4195,
+            destinationLat: 37.8044, destinationLng: -122.2712,
+            startTime: now, endTime: now.addingTimeInterval(3600),
+            seatsAvailable: 2, vehicleType: "SUV"
+        )
+        let o2 = TestHelpers.assertSuccess(service.createPoolOrder(by: admin, site: testSite, input: input2, operationId: UUID()))!
+        _ = service.activateOrder(by: admin, site: testSite, orderId: o2.id, operationId: UUID())
+
+        let matches = TestHelpers.assertSuccess(service.computeMatches(by: admin, site: testSite, for: order1.id))!
+        guard let match = matches.first else {
+            print("  SKIP: testLoadMatchRetrievesPersistedSegments (no matches found)")
+            return
+        }
+
+        let segments = segmentRepo.findByMatchId(match.id)
+        TestHelpers.assert(segments.count == 1, "Exactly one RouteSegment per match, got \(segments.count)")
+        TestHelpers.assert(segments[0].matchId == match.id, "Segment matchId must equal match id")
+        TestHelpers.assert(segments[0].estimatedDurationMinutes > 0, "Segment must have positive estimated duration")
+        print("  PASS: testLoadMatchRetrievesPersistedSegments")
     }
 
     // MARK: - Helpers

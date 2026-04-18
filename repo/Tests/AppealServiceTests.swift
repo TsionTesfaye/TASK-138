@@ -37,7 +37,8 @@ final class AppealServiceTests {
         testInvalidTransitionDenied()
         testAppealAuditTrail()
         testSalesAssociateCanSubmit()
-        testInventoryClerkCannotSubmit()
+        testInventoryClerkCanSubmit()
+        testInventoryClerkApproveAppealRejected()
         testCrossSiteAppealLookupDenied()
         testCrossSiteStartReviewDenied()
     }
@@ -187,14 +188,28 @@ final class AppealServiceTests {
         print("  PASS: testSalesAssociateCanSubmit")
     }
 
-    func testInventoryClerkCannotSubmit() {
+    func testInventoryClerkCanSubmit() {
         let (service, _, exceptionRepo, _, scopeRepo) = makeServices()
         let clerk = TestHelpers.makeInventoryClerk()
         grantScope(clerk, functionKey: "appeals", scopeRepo: scopeRepo)
         let exception = makeException(repo: exceptionRepo)
-        let result = service.submitAppeal(by: clerk, site: testSite, exceptionId: exception.id, reason: "Try", operationId: UUID())
+        let result = service.submitAppeal(by: clerk, site: testSite, exceptionId: exception.id, reason: "Dispute", operationId: UUID())
+        let appeal = TestHelpers.assertSuccess(result)!
+        TestHelpers.assert(appeal.submittedBy == clerk.id)
+        print("  PASS: testInventoryClerkCanSubmit")
+    }
+
+    func testInventoryClerkApproveAppealRejected() {
+        let (service, _, exceptionRepo, _, scopeRepo) = makeServices()
+        let sales = TestHelpers.makeSalesAssociate()
+        let clerk = TestHelpers.makeInventoryClerk()
+        grantScope(sales, functionKey: "appeals", scopeRepo: scopeRepo)
+        grantScope(clerk, functionKey: "appeals", scopeRepo: scopeRepo)
+        let exception = makeException(repo: exceptionRepo)
+        let appeal = TestHelpers.assertSuccess(service.submitAppeal(by: sales, site: testSite, exceptionId: exception.id, reason: "Dispute", operationId: UUID()))!
+        let result = service.approveAppeal(by: clerk, site: testSite, appealId: appeal.id, operationId: UUID())
         TestHelpers.assertFailure(result, code: "PERM_DENIED")
-        print("  PASS: testInventoryClerkCannotSubmit")
+        print("  PASS: testInventoryClerkApproveAppealRejected")
     }
 
     private func makeException(repo: InMemoryExceptionCaseRepository, siteId: String? = nil) -> ExceptionCase {

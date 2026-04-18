@@ -1,71 +1,75 @@
-# DealerOps Fresh Recheck Report (All 7 Prior Issues)
+# DealerOps Fresh Static Re-Check (Issue List Verification)
+Date: 2026-04-18
+Scope: Re-validated only the six previously reported findings, from scratch, using current repository state.
 
-Date: 2026-04-17  
-Mode: Static-only (no app run, no tests executed, no Docker)
+## Verification Boundary
+- Static review only (source + tests).
+- Not executed: app runtime, tests, Docker, simulator, background tasks.
+- Any runtime behavior claims remain Manual Verification Required.
 
-## Overall Status
-- Fixed: 7
-- Not Fixed: 0
+## Overall Conclusion
+**Pass (for the six listed findings)**
 
-## 1) High — Least-privilege role boundaries diverge (overprivileged compliance reviewer)
+All six previously reported findings appear fixed in the current codebase, based on static evidence.
+
+---
+
+## 1) High — Missing object-level authorization for non-appeal evidence uploads
 - Status: **Fixed**
 - Evidence:
-  - Compliance reviewer is denied leads/inventory: `Models/Enums/PermissionAction.swift:63-64`
-  - UI section visibility remains permission-matrix gated: `App/MainSplitViewController.swift:63-71`, `App/MainSplitViewController.swift:143-147`
-- Conclusion: Original overprivilege defect is resolved.
+  - `Services/FileService.swift:49-52` (entity type validation for `Lead`/`Appeal`)
+  - `Services/FileService.swift:63-72` (object-level authorization for both lead and appeal uploads)
+  - `Services/FileService.swift:297-309` (lead existence + site + ownership enforcement)
+  - `Services/FileService.swift:247-260` (same checks for entity query path)
+  - `Tests/FileServiceTests.swift:318-327` (non-owner lead denied)
+  - `Tests/FileServiceTests.swift:330-336` (missing lead denied)
+  - `Tests/FileServiceTests.swift:366-372` (unsupported entity type rejected)
 
-## 2) High — Admin site context can become empty
+## 2) High — Appointment object-level protection bypass when parent lead is missing
 - Status: **Fixed**
 - Evidence:
-  - Login assigns site using centralized resolver: `App/LoginViewController.swift:84`, `App/LoginViewController.swift:111`
-  - Resolver fallback is non-empty (`"main"`): `App/ServiceContainer.swift:192-202`
-  - Lead creation rejects blank site values: `Services/LeadService.swift:43-45`
-  - Site-resolution fallback tests exist: `Tests/ServiceContainerTests.swift:28-67`
-- Conclusion: Empty-site path is closed.
+  - `Services/AppointmentService.swift:98-100` (strict parent lead guard in `updateStatus`)
+  - `Services/AppointmentService.swift:166-168` (strict parent lead guard in `findById`)
+  - `Services/AppointmentService.swift:183-185` (strict parent lead guard in `findByLeadId`)
+  - `Tests/AppointmentServiceTests.swift:344-354` (orphan lead rejected on update)
+  - `Tests/AppointmentServiceTests.swift:357-367` (orphan lead rejected on read)
+  - `Tests/AppointmentServiceTests.swift:370-377` (missing lead rejected in lead query)
 
-## 3) High — Audit-log read path lacks explicit authorization control
+## 3) High — Variance workflow lacks non-admin adjustment path for below-threshold variances
 - Status: **Fixed**
 - Evidence:
-  - Read API guards enforce admin/reviewer roles: `Services/AuditService.swift:84-102`
-  - Audit log view uses guarded API: `App/Views/Admin/AuditLogViewController.swift:34-37`
-  - Authorization test coverage present: `Tests/AuditServiceTests.swift:144-179`
-- Conclusion: Audit read ACL issue is resolved.
+  - `Services/InventoryService.swift:233-242` (below-threshold variances are auto-approved during `computeVariances`, item quantity auto-updated, executed adjustment order auto-created)
+  - `Services/InventoryService.swift:219` (threshold check still controls `requiresApproval`)
+  - `Tests/InventoryServiceTests.swift:271-291` (test asserts auto-approval + qty update + executed adjustment order for sub-threshold variance)
+- Note:
+  - UI still presents admin action for pending variances (`App/Views/Inventory/InventoryTaskListViewController.swift:115-117`), but below-threshold variances no longer rely on that path because they are auto-processed at compute time.
 
-## 4) Medium — Dashboard SLA alert counts are global, not site-scoped
+## 4) Medium — Appeal filing role semantics narrower than prompt wording
 - Status: **Fixed**
 - Evidence:
-  - Dashboard passes active site into SLA query: `App/ViewModels/DashboardViewModel.swift:32`
-  - SLA query is site-filtered for leads/appointments: `Services/SLAService.swift:59-70`
-- Conclusion: Count path is site-scoped.
+  - `Models/Enums/PermissionAction.swift:33` and `Models/Enums/PermissionAction.swift:57` (Inventory Clerk has `appeals: CREATE`)
+  - `Tests/AppealServiceTests.swift:191-199` (inventory clerk can submit appeal)
+  - `Tests/AppealServiceTests.swift:202-212` (inventory clerk remains blocked from approve)
 
-## 5) Medium — RouteSegment entity persisted but unused in carpool matching logic
-- Status: **Fixed (resolved via removal/defer path)**
+## 5) Medium — Security-critical scenarios under-tested
+- Status: **Fixed (for the cited gaps)**
 - Evidence:
-  - Carpool matching implementation has no RouteSegment dependency and remains internally consistent with coordinate-based scoring: `Services/CarpoolService.swift:125-218`
-  - Current DI repository set excludes RouteSegment and CarpoolService wiring has no RouteSegment repo argument: `App/ServiceContainer.swift:11-34`, `App/ServiceContainer.swift:153-157`
-  - Current Core Data model entity list excludes RouteSegment: `Persistence/PersistenceController.swift:85-94`
-- Conclusion: Previous persisted-but-unused RouteSegment shape has been removed; no active stale RouteSegment persistence path remains in runtime model wiring.
+  - `Tests/FileServiceTests.swift:318-336` (lead ownership + missing lead negative tests)
+  - `Tests/FileServiceTests.swift:366-372` (unsupported entity type rejection)
+  - `Tests/AppointmentServiceTests.swift:344-377` (orphan/missing parent lead negative tests)
 
-## 6) Medium — Critical authz risks have limited targeted test coverage
+## 6) Low — Carpool matching comment contradicts overlap threshold
 - Status: **Fixed**
 - Evidence:
-  - Staff check-in coverage (sales/clerk/reviewer): `Tests/ExceptionServiceTests.swift:138-154`
-  - Check-in no-scope denial coverage: `Tests/ExceptionServiceTests.swift:156-162`
-  - Audit-log ACL tests (deny for staff, allow for reviewer): `Tests/AuditServiceTests.swift:144-179`
-  - Admin site-resolution behavior coverage: `Tests/ServiceContainerTests.swift:28-67`
-- Conclusion: Previously listed coverage gaps are now addressed.
+  - `Services/CarpoolService.swift:129` (comment says overlap >= 15 min)
+  - `Services/CarpoolService.swift:155-159` (logic enforces >= 15 minutes)
 
-## 7) Low — Internal comments reference non-existent docs (`design.md`, `questions.md`)
-- Status: **Fixed**
-- Evidence:
-  - Prior example files now use generic/internal comments without those doc references:
-    - `Services/AuthService.swift:1-6`
-    - `Services/LeadService.swift:1-4`
-    - `App/BootstrapViewController.swift:1-5`
-    - `Services/Platform/BiometricService.swift:1-9`
-  - Fresh repository scan found no remaining `design.md` / `questions.md` string references.
-- Conclusion: Stale reference cleanup is complete.
+---
 
-## Final Recheck Conclusion
-- All 7 previously reported issues are currently resolved in static code evidence.
-- Static boundary note: build/runtime behavior is not asserted here because this is a static-only audit.
+## Final Re-Check Summary
+- Fixed: 6/6 listed findings.
+- Remaining from this list: none.
+
+## Manual Verification Required
+- Run test suite to confirm all new/updated tests pass in runtime.
+- Perform UI flow checks to confirm inventory auto-adjust behavior is reflected correctly in screens and user messaging.

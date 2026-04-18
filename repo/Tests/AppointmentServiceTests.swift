@@ -72,6 +72,9 @@ final class AppointmentServiceTests {
         testGetUnconfirmedWithinSLA()
         testGetUnconfirmedWithinSLAOwnershipFiltering()
         testNonOwnerCannotAccessOtherLeadAppointment()
+        testUpdateStatusOrphanLeadRejected()
+        testFindByIdOrphanLeadRejected()
+        testFindByLeadIdMissingLeadRejected()
     }
 
     func testCreateAppointment() {
@@ -336,5 +339,41 @@ final class AppointmentServiceTests {
         let result = service.findById(by: other, site: testSite, appt.id)
         TestHelpers.assertFailure(result, code: "PERM_DENIED")
         print("  PASS: testNonOwnerCannotAccessOtherLeadAppointment")
+    }
+
+    func testUpdateStatusOrphanLeadRejected() {
+        let (service, apptRepo, _, scopeRepo) = makeServices()
+        let user = TestHelpers.makeSalesAssociate()
+        grantScope(user, scopeRepo: scopeRepo)
+        // Appointment references a lead that does not exist in the repo
+        let appt = Appointment(id: UUID(), siteId: testSite, leadId: UUID(), startTime: Date(), status: .scheduled)
+        try! apptRepo.save(appt)
+
+        let result = service.updateStatus(by: user, site: testSite, appointmentId: appt.id, newStatus: .confirmed, operationId: UUID())
+        TestHelpers.assertFailure(result, code: "ENTITY_NOT_FOUND")
+        print("  PASS: testUpdateStatusOrphanLeadRejected")
+    }
+
+    func testFindByIdOrphanLeadRejected() {
+        let (service, apptRepo, _, scopeRepo) = makeServices()
+        let user = TestHelpers.makeSalesAssociate()
+        grantScope(user, scopeRepo: scopeRepo)
+        // Appointment references a lead that does not exist in the repo
+        let appt = Appointment(id: UUID(), siteId: testSite, leadId: UUID(), startTime: Date(), status: .scheduled)
+        try! apptRepo.save(appt)
+
+        let result = service.findById(by: user, site: testSite, appt.id)
+        TestHelpers.assertFailure(result, code: "ENTITY_NOT_FOUND")
+        print("  PASS: testFindByIdOrphanLeadRejected")
+    }
+
+    func testFindByLeadIdMissingLeadRejected() {
+        let (service, _, _, scopeRepo) = makeServices()
+        let user = TestHelpers.makeSalesAssociate()
+        grantScope(user, scopeRepo: scopeRepo)
+        // Query for appointments of a lead that does not exist
+        let result = service.findByLeadId(by: user, site: testSite, UUID())
+        TestHelpers.assertFailure(result, code: "ENTITY_NOT_FOUND")
+        print("  PASS: testFindByLeadIdMissingLeadRejected")
     }
 }

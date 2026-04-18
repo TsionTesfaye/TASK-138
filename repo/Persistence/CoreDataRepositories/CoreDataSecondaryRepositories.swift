@@ -324,6 +324,27 @@ final class CoreDataCarpoolMatchRepository: CarpoolMatchRepository {
     func delete(_ id: UUID) throws { try CoreDataHelpers.delete(id: id, entityName: entityName, context: context) }
 }
 
+// MARK: - RouteSegment
+
+final class CoreDataRouteSegmentRepository: RouteSegmentRepository {
+    private let context: NSManagedObjectContext
+    private let entityName = "CDRouteSegment"
+    init(context: NSManagedObjectContext) { self.context = context }
+
+    func findById(_ id: UUID) -> RouteSegment? {
+        CoreDataHelpers.findById(id, entityName: entityName, context: context).map { RouteSegment(mo: $0) }
+    }
+    func findByMatchId(_ matchId: UUID) -> [RouteSegment] {
+        CoreDataHelpers.fetch(entityName: entityName,
+            predicate: NSPredicate(format: "matchId == %@", matchId as CVarArg), context: context
+        ).map { RouteSegment(mo: $0) }
+    }
+    func save(_ segment: RouteSegment) throws {
+        try CoreDataHelpers.upsert(id: segment.id, entityName: entityName, context: context) { mo in segment.apply(to: mo) }
+    }
+    func delete(_ id: UUID) throws { try CoreDataHelpers.delete(id: id, entityName: entityName, context: context) }
+}
+
 // MARK: - PermissionScope
 
 final class CoreDataPermissionScopeRepository: PermissionScopeRepository {

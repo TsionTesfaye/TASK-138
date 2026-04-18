@@ -30,7 +30,7 @@ struct PermissionMatrix {
     /// |---------------------|-------|-----------|---------|---------|------------|---------|-------|
     /// | Administrator       | FULL  | FULL      | FULL    | FULL    | FULL       | FULL    | FULL  |
     /// | Sales Associate     | CRUD  | NONE      | CRUD    | CREATE  | READ       | CREATE  | NONE  |
-    /// | Inventory Clerk     | NONE  | CRUD      | NONE    | NONE    | NONE       | CREATE  | NONE  |
+    /// | Inventory Clerk     | NONE  | CRUD      | NONE    | CREATE  | NONE       | CREATE  | NONE  |
     /// | Compliance Reviewer | NONE  | NONE      | NONE    | REVIEW  | REVIEW     | CREATE  | NONE  |
     ///
     /// Checkin is a dedicated module so any active scoped staff member can record their own
@@ -54,7 +54,7 @@ struct PermissionMatrix {
         case (.inventoryClerk, .leads):       return .none
         case (.inventoryClerk, .inventory):   return .crud
         case (.inventoryClerk, .carpool):     return .none
-        case (.inventoryClerk, .appeals):     return .none
+        case (.inventoryClerk, .appeals):     return .create
         case (.inventoryClerk, .exceptions):  return .none
         case (.inventoryClerk, .checkin):     return .create
         case (.inventoryClerk, .admin):       return .none

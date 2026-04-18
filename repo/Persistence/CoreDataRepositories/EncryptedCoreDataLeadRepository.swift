@@ -85,9 +85,9 @@ final class EncryptedCoreDataLeadRepository: LeadRepository {
     }
 
     private func decryptLead(_ lead: Lead) -> Lead {
-        let phone = encryption.decrypt(lead.phone, recordId: lead.id) ?? lead.phone
-        let name = encryption.decrypt(lead.customerName, recordId: lead.id) ?? lead.customerName
-        let consent = encryption.decrypt(lead.consentNotes, recordId: lead.id) ?? lead.consentNotes
+        let phone = encryption.decrypt(lead.phone, recordId: lead.id) ?? "[DECRYPTION FAILED]"
+        let name = encryption.decrypt(lead.customerName, recordId: lead.id) ?? "[DECRYPTION FAILED]"
+        let consent = encryption.decrypt(lead.consentNotes, recordId: lead.id) ?? "[DECRYPTION FAILED]"
         return Lead(
             id: lead.id, siteId: lead.siteId, leadType: lead.leadType, status: lead.status,
             customerName: name, phone: phone,

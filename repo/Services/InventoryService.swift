@@ -218,7 +218,7 @@ final class InventoryService {
                 let threshold = max(unitThreshold, Int(ceil(percentThreshold)))
                 let requiresApproval = absDiff > threshold
 
-                let variance = Variance(
+                var variance = Variance(
                     id: UUID(),
                     siteId: site,
                     itemId: item.id,
@@ -229,6 +229,18 @@ final class InventoryService {
                     approved: false
                 )
                 do { try varianceRepo.save(variance) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_variance", error: error) }
+
+                if !requiresApproval {
+                    variance.approved = true
+                    do { try varianceRepo.save(variance) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_variance_auto", error: error) }
+                    var adjustedItem = item
+                    adjustedItem.expectedQty = variance.countedQty
+                    do { try inventoryItemRepo.save(adjustedItem) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_item_auto_adjust", error: error) }
+                    let autoOrder = AdjustmentOrder(id: UUID(), siteId: site, varianceId: variance.id, approvedBy: user.id, createdAt: Date(), status: .executed)
+                    do { try adjustmentOrderRepo.save(autoOrder) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_adj_order_auto", error: error) }
+                    auditService.log(actorId: user.id, action: "variance_auto_adjusted", entityId: variance.id)
+                }
+
                 variances.append(variance)
             }
 
@@ -266,6 +278,67 @@ final class InventoryService {
         }
 
         return .success(variances)
+    }
+
+    // MARK: - Process Sub-Threshold Variance (non-admin path)
+
+    /// For variances that do NOT require approval (below threshold), any inventory-permitted
+    /// user may call this to auto-generate and immediately execute an adjustment order.
+    /// For above-threshold variances (requiresApproval == true), returns .approvalRequired —
+    /// the caller must use approveVariance (admin-only) instead.
+    func processVariance(
+        by user: User,
+        site: String,
+        varianceId: UUID,
+        operationId: UUID
+    ) -> ServiceResult<AdjustmentOrder> {
+        if operationLogRepo.exists(operationId) { return .failure(.duplicateOperation) }
+
+        if case .failure(let err) = permissionService.validateFullAccess(
+            user: user, action: "update", module: .inventory,
+            site: site, functionKey: "inventory"
+        ) {
+            return .failure(err)
+        }
+
+        guard var variance = varianceRepo.findById(varianceId) else {
+            return .failure(.entityNotFound)
+        }
+        guard variance.siteId == site else { return .failure(.permissionDenied) }
+
+        guard !variance.requiresApproval else {
+            return .failure(.approvalRequired)
+        }
+        guard !variance.approved else { return .failure(.duplicateOperation) }
+
+        guard var item = inventoryItemRepo.findById(variance.itemId) else {
+            return .failure(.entityNotFound)
+        }
+
+        variance.approved = true
+        do { try varianceRepo.save(variance) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_variance_auto", error: error) }
+
+        item.expectedQty = variance.countedQty
+        do { try inventoryItemRepo.save(item) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_item_auto_adjust", error: error) }
+
+        let order = AdjustmentOrder(
+            id: UUID(),
+            siteId: site,
+            varianceId: varianceId,
+            approvedBy: user.id,
+            createdAt: Date(),
+            status: .executed
+        )
+
+        do {
+            try adjustmentOrderRepo.save(order)
+            try operationLogRepo.save(operationId)
+            auditService.log(actorId: user.id, action: "variance_auto_adjusted", entityId: varianceId)
+            auditService.log(actorId: user.id, action: "adjustment_order_created", entityId: order.id)
+            return .success(order)
+        } catch {
+            return .failure(ServiceError(code: "SAVE_FAIL", message: error.localizedDescription))
+        }
     }
 
     // MARK: - Approve Variance (admin only)
@@ -443,12 +516,23 @@ final class InventoryService {
                         let threshold = max(unitThreshold, Int(ceil(percentThreshold)))
                         let requiresApproval = absDiff > threshold
 
-                        let variance = Variance(
+                        var variance = Variance(
                             id: UUID(), siteId: task.siteId, itemId: item.id,
                             expectedQty: item.expectedQty, countedQty: entry.countedQty,
                             type: varianceType, requiresApproval: requiresApproval, approved: false
                         )
                         do { try varianceRepo.save(variance) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_deferred_variance", error: error) }
+
+                        if !requiresApproval {
+                            variance.approved = true
+                            do { try varianceRepo.save(variance) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_deferred_variance_auto", error: error) }
+                            var adjustedItem = item
+                            adjustedItem.expectedQty = variance.countedQty
+                            do { try inventoryItemRepo.save(adjustedItem) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_item_deferred_auto_adjust", error: error) }
+                            let autoOrder = AdjustmentOrder(id: UUID(), siteId: task.siteId, varianceId: variance.id, approvedBy: nil, createdAt: Date(), status: .executed)
+                            do { try adjustmentOrderRepo.save(autoOrder) } catch { ServiceLogger.persistenceError(ServiceLogger.inventory, operation: "save_adj_order_deferred_auto", error: error) }
+                        }
+
                         totalVariances += 1
                     }
 

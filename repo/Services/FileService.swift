@@ -7,6 +7,7 @@ final class FileService {
 
     private let evidenceFileRepo: EvidenceFileRepository
     private let appealRepo: AppealRepository
+    private let leadRepo: LeadRepository
     private let permissionService: PermissionService
     private let auditService: AuditService
     private let operationLogRepo: OperationLogRepository
@@ -17,12 +18,14 @@ final class FileService {
     init(
         evidenceFileRepo: EvidenceFileRepository,
         appealRepo: AppealRepository,
+        leadRepo: LeadRepository,
         permissionService: PermissionService,
         auditService: AuditService,
         operationLogRepo: OperationLogRepository
     ) {
         self.evidenceFileRepo = evidenceFileRepo
         self.appealRepo = appealRepo
+        self.leadRepo = leadRepo
         self.permissionService = permissionService
         self.auditService = auditService
         self.operationLogRepo = operationLogRepo
@@ -43,6 +46,11 @@ final class FileService {
     ) -> ServiceResult<EvidenceFile> {
         if operationLogRepo.exists(operationId) { return .failure(.duplicateOperation) }
 
+        // Validate entity type — only "Lead" and "Appeal" are supported
+        guard entityType == "Lead" || entityType == "Appeal" else {
+            return .failure(.invalidEntityType)
+        }
+
         let module: PermissionModule = entityType == "Appeal" ? .appeals : .leads
         let functionKey = entityType == "Appeal" ? "appeals" : "leads"
         if case .failure(let err) = permissionService.validateFullAccess(
@@ -52,9 +60,13 @@ final class FileService {
             return .failure(err)
         }
 
-        // For appeal evidence, verify the appeal exists at this site and caller has ownership
+        // Object-level: entity must exist, belong to this site, and actor must own it or be admin
         if entityType == "Appeal" {
             if case .failure(let err) = authorizeAppealEvidenceAccess(appealId: entityId, user: user, siteId: site) {
+                return .failure(err)
+            }
+        } else {
+            if case .failure(let err) = authorizeLeadEvidenceAccess(leadId: entityId, user: user, siteId: site) {
                 return .failure(err)
             }
         }
@@ -232,9 +244,16 @@ final class FileService {
         ) {
             return .failure(err)
         }
-        // Object-level: for appeal evidence, check submitter/reviewer/admin access
+        // Object-level: entity must exist, belong to this site, and actor must own it or be admin
+        guard entityType == "Lead" || entityType == "Appeal" else {
+            return .failure(.invalidEntityType)
+        }
         if entityType == "Appeal" {
             if case .failure(let err) = authorizeAppealEvidenceAccess(appealId: entityId, user: user, siteId: site) {
+                return .failure(err)
+            }
+        } else {
+            if case .failure(let err) = authorizeLeadEvidenceAccess(leadId: entityId, user: user, siteId: site) {
                 return .failure(err)
             }
         }
@@ -264,9 +283,27 @@ final class FileService {
         ) {
             return .failure(err)
         }
-        // Object-level: for appeal evidence, check submitter/reviewer/admin
+        // Object-level: entity must exist, belong to site, and actor must own it or be admin
         if file.entityType == "Appeal" {
             return authorizeAppealEvidenceAccess(appealId: file.entityId, user: user, siteId: site)
+        } else if file.entityType == "Lead" {
+            return authorizeLeadEvidenceAccess(leadId: file.entityId, user: user, siteId: site)
+        }
+        return .success(())
+    }
+
+    /// Object-level authorization for lead evidence.
+    /// Allowed: admin, lead owner (assignedTo), or unassigned lead.
+    private func authorizeLeadEvidenceAccess(leadId: UUID, user: User, siteId: String) -> ServiceResult<Void> {
+        guard let lead = leadRepo.findById(leadId) else {
+            return .failure(.entityNotFound)
+        }
+        guard lead.siteId == siteId else {
+            return .failure(.permissionDenied)
+        }
+        if user.role == .administrator { return .success(()) }
+        guard lead.assignedTo == nil || lead.assignedTo == user.id else {
+            return .failure(.permissionDenied)
         }
         return .success(())
     }

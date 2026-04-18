@@ -5,17 +5,47 @@ final class FileServiceTests {
 
     private let testSite = "lot-a"
 
-    private func makeService() -> (FileService, InMemoryEvidenceFileRepository, InMemoryAppealRepository) {
-        let repo = InMemoryEvidenceFileRepository()
+    private func makeService() -> (FileService, InMemoryEvidenceFileRepository, InMemoryAppealRepository, InMemoryLeadRepository, InMemoryPermissionScopeRepository) {
+        let evidenceRepo = InMemoryEvidenceFileRepository()
         let appealRepo = InMemoryAppealRepository()
-        let permService = PermissionService(permissionScopeRepo: InMemoryPermissionScopeRepository())
+        let leadRepo = InMemoryLeadRepository()
+        let scopeRepo = InMemoryPermissionScopeRepository()
+        let permService = PermissionService(permissionScopeRepo: scopeRepo)
         let auditService = AuditService(auditLogRepo: InMemoryAuditLogRepository())
         let opLogRepo = InMemoryOperationLogRepository()
         let service = FileService(
-            evidenceFileRepo: repo, appealRepo: appealRepo, permissionService: permService,
-            auditService: auditService, operationLogRepo: opLogRepo
+            evidenceFileRepo: evidenceRepo, appealRepo: appealRepo, leadRepo: leadRepo,
+            permissionService: permService, auditService: auditService, operationLogRepo: opLogRepo
         )
-        return (service, repo, appealRepo)
+        return (service, evidenceRepo, appealRepo, leadRepo, scopeRepo)
+    }
+
+    private func grantLeadsScope(_ user: User, scopeRepo: InMemoryPermissionScopeRepository) {
+        let scope = PermissionScope(
+            id: UUID(), userId: user.id, site: testSite, functionKey: "leads",
+            validFrom: Date().addingTimeInterval(-3600), validTo: Date().addingTimeInterval(3600)
+        )
+        try! scopeRepo.save(scope)
+    }
+
+    private func grantAppealsScope(_ user: User, scopeRepo: InMemoryPermissionScopeRepository) {
+        let scope = PermissionScope(
+            id: UUID(), userId: user.id, site: testSite, functionKey: "appeals",
+            validFrom: Date().addingTimeInterval(-3600), validTo: Date().addingTimeInterval(3600)
+        )
+        try! scopeRepo.save(scope)
+    }
+
+    private func makeLead(in leadRepo: InMemoryLeadRepository, siteId: String = "lot-a", assignedTo: UUID? = nil) -> Lead {
+        let lead = Lead(
+            id: UUID(), siteId: siteId, leadType: .quoteRequest, status: .new,
+            customerName: "Test", phone: "555-0000", vehicleInterest: "SUV",
+            preferredContactWindow: "AM", consentNotes: "", assignedTo: assignedTo,
+            createdAt: Date(), updatedAt: Date(), slaDeadline: nil,
+            lastQualifyingAction: nil, archivedAt: nil
+        )
+        try! leadRepo.save(lead)
+        return lead
     }
 
     func runAll() {
@@ -32,6 +62,13 @@ final class FileServiceTests {
         testRejectMismatchedMagicBytes()
         testRejectRenamedPayload()
         testCrossSiteFileAccessDenied()
+        testMP4FileTypeIsVideoAndRouteIsAVPlayer()
+        testUploadToLeadOwnerAllowed()
+        testUploadToLeadNonOwnerDenied()
+        testUploadToLeadMissingLeadDenied()
+        testUploadToAppealOwnerAllowed()
+        testUploadToAppealNonOwnerDenied()
+        testUploadUnsupportedEntityTypeRejected()
     }
 
     // MARK: - Magic Byte Test Data
@@ -56,7 +93,7 @@ final class FileServiceTests {
     }
 
     func testUploadJPGSuccess() {
-        let (service, repo, _) = makeService()
+        let (service, repo, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let data = FileServiceTests.makeJPGData()
         let result = service.uploadFile(by: admin, site: testSite, entityId: UUID(), entityType: "Appeal", data: data, fileType: .jpg, operationId: UUID())
@@ -68,16 +105,17 @@ final class FileServiceTests {
     }
 
     func testUploadPNGSuccess() {
-        let (service, _, _) = makeService()
+        let (service, _, _, leadRepo, _) = makeService()
         let admin = TestHelpers.makeAdmin()
+        let lead = makeLead(in: leadRepo)
         let data = FileServiceTests.makePNGData()
-        let result = service.uploadFile(by: admin, site: testSite, entityId: UUID(), entityType: "Lead", data: data, fileType: .png, operationId: UUID())
+        let result = service.uploadFile(by: admin, site: testSite, entityId: lead.id, entityType: "Lead", data: data, fileType: .png, operationId: UUID())
         _ = TestHelpers.assertSuccess(result)
         print("  PASS: testUploadPNGSuccess")
     }
 
     func testUploadMP4Success() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let data = FileServiceTests.makeMP4Data()
         let result = service.uploadFile(by: admin, site: testSite, entityId: UUID(), entityType: "Appeal", data: data, fileType: .mp4, operationId: UUID())
@@ -86,7 +124,7 @@ final class FileServiceTests {
     }
 
     func testRejectOversizedImage() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let data = FileServiceTests.makeJPGData(size: 10 * 1024 * 1024 + 1)
         let result = service.uploadFile(by: admin, site: testSite, entityId: UUID(), entityType: "Appeal", data: data, fileType: .jpg, operationId: UUID())
@@ -95,7 +133,7 @@ final class FileServiceTests {
     }
 
     func testRejectOversizedVideo() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let data = FileServiceTests.makeMP4Data(size: 50 * 1024 * 1024 + 1)
         let result = service.uploadFile(by: admin, site: testSite, entityId: UUID(), entityType: "Appeal", data: data, fileType: .mp4, operationId: UUID())
@@ -104,7 +142,7 @@ final class FileServiceTests {
     }
 
     func testSHA256Correctness() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let data = "Hello, DealerOps".data(using: .utf8)!
         let hash = service.sha256(data: data)
         TestHelpers.assert(hash.count == 64, "SHA-256 hex should be 64 chars, got \(hash.count)")
@@ -114,7 +152,7 @@ final class FileServiceTests {
     }
 
     func testWatermarkInfo() {
-        let (service, repo, _) = makeService()
+        let (service, repo, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let data = FileServiceTests.makeJPGData(size: 100)
         let file = TestHelpers.assertSuccess(service.uploadFile(by: admin, site: testSite, entityId: UUID(), entityType: "Appeal", data: data, fileType: .jpg, operationId: UUID()))!
@@ -125,7 +163,7 @@ final class FileServiceTests {
     }
 
     func testPinFileAdminOnly() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
         let clerk = TestHelpers.makeInventoryClerk()
         let data = FileServiceTests.makePNGData(size: 100)
@@ -141,7 +179,7 @@ final class FileServiceTests {
     }
 
     func testPurgeUnpinnedAppealMedia() {
-        let (service, repo, appealRepo) = makeService()
+        let (service, repo, appealRepo, _, _) = makeService()
 
         // Create a denied appeal to link evidence to
         let deniedAppealId = UUID()
@@ -191,7 +229,7 @@ final class FileServiceTests {
     // MARK: - Binary Signature Validation Tests
 
     func testRejectMismatchedMagicBytes() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
 
         // PNG data declared as JPG — should be rejected
@@ -213,7 +251,7 @@ final class FileServiceTests {
     }
 
     func testRejectRenamedPayload() {
-        let (service, _, _) = makeService()
+        let (service, _, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
 
         // MP4 data declared as JPG — should be rejected (ftyp header != FF D8 FF)
@@ -232,7 +270,7 @@ final class FileServiceTests {
     // MARK: - Cross-Site Isolation Tests
 
     func testCrossSiteFileAccessDenied() {
-        let (service, repo, _) = makeService()
+        let (service, repo, _, _, _) = makeService()
         let admin = TestHelpers.makeAdmin()
 
         // Upload file on lot-a
@@ -254,5 +292,83 @@ final class FileServiceTests {
         TestHelpers.assert(original != nil, "File should still exist on original site")
 
         print("  PASS: testCrossSiteFileAccessDenied")
+    }
+
+    func testMP4FileTypeIsVideoAndRouteIsAVPlayer() {
+        TestHelpers.assert(EvidenceFileType.mp4.isVideo, "mp4 must be identified as video to trigger AVPlayerViewController routing")
+        TestHelpers.assert(!EvidenceFileType.mp4.isImage, "mp4 must not be identified as image")
+        TestHelpers.assert(EvidenceFileType.jpg.isImage, "jpg must be identified as image")
+        TestHelpers.assert(!EvidenceFileType.jpg.isVideo, "jpg must not be identified as video")
+        print("  PASS: testMP4FileTypeIsVideoAndRouteIsAVPlayer")
+    }
+
+    // MARK: - Lead Entity Authorization Tests (H1)
+
+    func testUploadToLeadOwnerAllowed() {
+        let (service, _, _, leadRepo, scopeRepo) = makeService()
+        let owner = TestHelpers.makeSalesAssociate()
+        grantLeadsScope(owner, scopeRepo: scopeRepo)
+        let lead = makeLead(in: leadRepo, assignedTo: owner.id)
+        let data = FileServiceTests.makeJPGData()
+        let result = service.uploadFile(by: owner, site: testSite, entityId: lead.id, entityType: "Lead", data: data, fileType: .jpg, operationId: UUID())
+        _ = TestHelpers.assertSuccess(result)
+        print("  PASS: testUploadToLeadOwnerAllowed")
+    }
+
+    func testUploadToLeadNonOwnerDenied() {
+        let (service, _, _, leadRepo, scopeRepo) = makeService()
+        let owner = TestHelpers.makeSalesAssociate(username: "owner")
+        let nonOwner = TestHelpers.makeSalesAssociate(username: "nonowner")
+        grantLeadsScope(nonOwner, scopeRepo: scopeRepo)
+        let lead = makeLead(in: leadRepo, assignedTo: owner.id)
+        let data = FileServiceTests.makeJPGData()
+        let result = service.uploadFile(by: nonOwner, site: testSite, entityId: lead.id, entityType: "Lead", data: data, fileType: .jpg, operationId: UUID())
+        TestHelpers.assertFailure(result, code: "PERM_DENIED")
+        print("  PASS: testUploadToLeadNonOwnerDenied")
+    }
+
+    func testUploadToLeadMissingLeadDenied() {
+        let (service, _, _, _, _) = makeService()
+        let admin = TestHelpers.makeAdmin()
+        let data = FileServiceTests.makeJPGData()
+        let result = service.uploadFile(by: admin, site: testSite, entityId: UUID(), entityType: "Lead", data: data, fileType: .jpg, operationId: UUID())
+        TestHelpers.assertFailure(result, code: "ENTITY_NOT_FOUND")
+        print("  PASS: testUploadToLeadMissingLeadDenied")
+    }
+
+    func testUploadToAppealOwnerAllowed() {
+        let (service, _, appealRepo, _, scopeRepo) = makeService()
+        let submitter = TestHelpers.makeSalesAssociate()
+        grantAppealsScope(submitter, scopeRepo: scopeRepo)
+        let appealId = UUID()
+        let appeal = Appeal(id: appealId, siteId: testSite, exceptionId: UUID(), status: .submitted, reviewerId: nil, submittedBy: submitter.id, reason: "test", resolvedAt: nil)
+        try! appealRepo.save(appeal)
+        let data = FileServiceTests.makeJPGData()
+        let result = service.uploadFile(by: submitter, site: testSite, entityId: appealId, entityType: "Appeal", data: data, fileType: .jpg, operationId: UUID())
+        _ = TestHelpers.assertSuccess(result)
+        print("  PASS: testUploadToAppealOwnerAllowed")
+    }
+
+    func testUploadToAppealNonOwnerDenied() {
+        let (service, _, appealRepo, _, scopeRepo) = makeService()
+        let submitter = TestHelpers.makeSalesAssociate(username: "submitter")
+        let stranger = TestHelpers.makeSalesAssociate(username: "stranger")
+        grantAppealsScope(stranger, scopeRepo: scopeRepo)
+        let appealId = UUID()
+        let appeal = Appeal(id: appealId, siteId: testSite, exceptionId: UUID(), status: .submitted, reviewerId: nil, submittedBy: submitter.id, reason: "test", resolvedAt: nil)
+        try! appealRepo.save(appeal)
+        let data = FileServiceTests.makeJPGData()
+        let result = service.uploadFile(by: stranger, site: testSite, entityId: appealId, entityType: "Appeal", data: data, fileType: .jpg, operationId: UUID())
+        TestHelpers.assertFailure(result, code: "PERM_DENIED")
+        print("  PASS: testUploadToAppealNonOwnerDenied")
+    }
+
+    func testUploadUnsupportedEntityTypeRejected() {
+        let (service, _, _, _, _) = makeService()
+        let admin = TestHelpers.makeAdmin()
+        let data = FileServiceTests.makeJPGData()
+        let result = service.uploadFile(by: admin, site: testSite, entityId: UUID(), entityType: "Appointment", data: data, fileType: .jpg, operationId: UUID())
+        TestHelpers.assertFailure(result, code: "ENTITY_TYPE_INVALID")
+        print("  PASS: testUploadUnsupportedEntityTypeRejected")
     }
 }

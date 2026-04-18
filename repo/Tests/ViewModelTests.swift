@@ -116,6 +116,7 @@ final class ViewModelTests {
         testCreateTaskNoSession()
         testScannerLookupHit()
         testScannerLookupMiss()
+        testComputeVariancesAutoAdjustsBelowThreshold()
 
         // DashboardViewModel tests
         testDashboardLoadsDataForAdmin()
@@ -374,6 +375,31 @@ final class ViewModelTests {
         let result = vm.scannerLookup("UNKNOWN")
         TestHelpers.assertFailure(result, code: "INV_SCAN_INVALID")
         print("  PASS: testScannerLookupMiss")
+    }
+
+    func testComputeVariancesAutoAdjustsBelowThreshold() {
+        // expectedQty=100, countedQty=102 → diff=2 ≤ threshold(3) → requiresApproval=false
+        // Verifies end-to-end through InventoryViewModel that computeVariances auto-processes below-threshold variances
+        let container = makeContainer()
+        let admin = startAdmin(in: container)
+        grantScope(admin, functionKey: "inventory", in: container)
+
+        let item = InventoryItem(id: UUID(), siteId: site, identifier: "VM-AUTO-1", expectedQty: 100, location: "Lot A", custodian: "Bob")
+        try! container.inventoryItemRepo.save(item)
+
+        let vm = makeInventoryVM(container: container)
+        let task = TestHelpers.assertSuccess(vm.createTask(assignedTo: admin.id))!
+        let batch = TestHelpers.assertSuccess(vm.createBatch(taskId: task.id))!
+        _ = TestHelpers.assertSuccess(vm.recordEntry(batchId: batch.id, itemId: item.id, qty: 102, location: "Lot A", custodian: "Bob"))
+
+        let variances = TestHelpers.assertSuccess(vm.computeVariances(batchId: batch.id))!
+        let v = variances.first { $0.type == .surplus }!
+        TestHelpers.assert(!v.requiresApproval, "Should be below threshold")
+        TestHelpers.assert(v.approved, "Below-threshold variance should be auto-approved during computeVariances")
+        TestHelpers.assert(container.inventoryItemRepo.findById(item.id)!.expectedQty == 102, "Item qty should be updated to counted qty")
+        let autoOrder = container.adjustmentOrderRepo.findByVarianceId(v.id)
+        TestHelpers.assert(autoOrder?.status == .executed, "Auto-adjustment order should have executed status")
+        print("  PASS: testComputeVariancesAutoAdjustsBelowThreshold")
     }
 
     // MARK: - DashboardViewModel Tests

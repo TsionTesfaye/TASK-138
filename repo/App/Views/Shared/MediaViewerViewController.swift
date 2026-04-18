@@ -1,4 +1,5 @@
 import UIKit
+import AVKit
 
 /// Media viewer with watermark overlay.
 final class MediaViewerViewController: UIViewController {
@@ -42,6 +43,21 @@ final class MediaViewerViewController: UIViewController {
             if let image = UIImage(contentsOfFile: file.filePath) {
                 imageView.image = image
             }
+        } else if file.fileType.isVideo {
+            let player = AVPlayer(url: URL(fileURLWithPath: file.filePath))
+            let playerVC = AVPlayerViewController()
+            playerVC.player = player
+            addChild(playerVC)
+            playerVC.view.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(playerVC.view)
+            NSLayoutConstraint.activate([
+                playerVC.view.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+                playerVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+                playerVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+                playerVC.view.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -60),
+            ])
+            playerVC.didMove(toParent: self)
+            player.play()
         }
 
         // Watermark overlay

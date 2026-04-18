@@ -19,6 +19,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Runs synchronously before determineRootViewController so the user count is
         // already > 0 by the time we decide which screen to show — bootstrap is
         // bypassed and the app goes straight to the login screen.
+        #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("-SeedDemoAccounts") {
             let seeder = DebugSeeder(
                 userRepo: container.userRepo,
@@ -27,6 +28,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
             )
             seeder.seed()
         }
+        #endif
 
         // Register background tasks
         registerBackgroundTasks()

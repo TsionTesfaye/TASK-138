@@ -45,6 +45,7 @@ struct ServiceError: Error, Equatable {
     static let fileTooLarge = ServiceError(code: "FILE_TOO_LARGE", message: "File exceeds size limit")
     static let invalidFileFormat = ServiceError(code: "FILE_FORMAT", message: "Invalid file format")
     static let fileNotFound = ServiceError(code: "FILE_NOT_FOUND", message: "File not found")
+    static let invalidEntityType = ServiceError(code: "ENTITY_TYPE_INVALID", message: "Unsupported entity type")
 
     // MARK: - Inventory Errors
     static let approvalRequired = ServiceError(code: "INV_APPROVAL_REQ", message: "Admin approval required for this variance")
